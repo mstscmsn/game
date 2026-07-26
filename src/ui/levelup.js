@@ -163,10 +163,23 @@ export function openChest() {
       if (owned) { formForbidden(f); return; }
     }
   }
-  // priority 2: artifact evolution (weapon lv8 + catalyst owned) — pity guarantees ≤3 chests
+  // priority 2: artifact evolution (weapon lv8 + catalyst owned)
   const eligible = p.weapons.filter(w => !w.evolved && w.lv >= 8 && p.catalysts.some(c => c.id === WEAPON_BY_ID[w.id].catalyst));
   if (eligible.length) { evolveWeapon(eligible[0]); G.chestPity = 0; return; }
   G.chestPity++;
+  // 神器保底 (docs §6.3): 3rd consecutive artifact-less boss chest hands you
+  // the missing catalyst for your most-developed weapon
+  if (G.chestPity >= 3) {
+    G.chestPity = 0;
+    const best = [...p.weapons].filter(w => !w.evolved).sort((a, b) => b.lv - a.lv)[0];
+    if (best && !p.catalysts.some(c => c.id === WEAPON_BY_ID[best.id].catalyst) && p.catalysts.length < 6) {
+      const catDef = CATALYST_BY_ID[WEAPON_BY_ID[best.id].catalyst];
+      p.catalysts.push({ id: catDef.id, lv: 1 });
+      recomputeStats(p);
+      toastCeremony('神器保底', `铁钉神父的馈赠：${catDef.name}（${WEAPON_BY_ID[best.id].name} 的催化物）`, icon(catDef.icon), 'q-rare');
+      return;
+    }
+  }
   // priority 3: 地狱免费神器升级 or relic / upgrades
   if (G.freeArtifactUpgrade > 0) {
     const w = p.weapons.filter(w => w.lv < 8).sort((a, b) => b.lv - a.lv)[0];
@@ -355,7 +368,9 @@ function renderCards(title, cards, h) {
 function closeCards(resume = true) {
   const el = document.getElementById('levelup-ui');
   if (el) el.remove();
-  if (resume) G.phase = 'play';
+  // only un-pause if the level-up pause is still the active phase —
+  // never stomp finalchoice/paused/story states set meanwhile
+  if (resume && G.phase === 'levelup') G.phase = 'play';
 }
 function cloneCanvas(c) {
   const n = document.createElement('canvas');
@@ -382,10 +397,15 @@ function ceremony(kicker, name, desc, iconCanvas, ms, q) {
   wrap.appendChild(skip);
   ui().appendChild(wrap);
   let closed = false;
-  const close = () => { if (closed) return; closed = true; wrap.remove(); G.phase = 'play'; };
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    wrap.remove();
+    // restore play only if this ceremony's pause is still what holds the game
+    if (G.phase === 'levelup' && !document.getElementById('levelup-ui') && !document.getElementById('pause-ui')) G.phase = 'play';
+  };
   skip.addEventListener('click', close);
   wrap.addEventListener('click', close);
-  setTimeout(() => { if (!closed && !document.body.contains(wrap)) return; }, ms);
   setTimeout(close, ms + 2600);
 }
 function toastCeremony(kicker, text, iconCanvas, q = 'q-rare') {

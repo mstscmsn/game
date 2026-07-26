@@ -64,11 +64,16 @@ export function updateFlow(dt) {
       num(G.player.x, G.player.y - 40, `世界层 ${loop + 1}：${affix.name}`, 'warn');
       toastLines('腐化词缀', `${affix.name}——${affix.desc}`);
       G.runResources.eye += 1;
-      // 永恒抉择: strong boon — waits for a safe moment
+      // 永恒抉择: strong boon — waits for a safe moment (phase re-checked
+      // at import resolution to survive same-frame level-up races)
       const tryEternal = () => {
         if (!G.active || G.ended) return;
         if (G.phase !== 'play') { after(1, tryEternal); return; }
-        import('../ui/levelup.js').then(m => m.openEternalChoice());
+        import('../ui/levelup.js').then(m => {
+          if (!G.active || G.ended) return;
+          if (G.phase !== 'play') { after(1, tryEternal); return; }
+          m.openEternalChoice();
+        });
       };
       after(0.5, tryEternal);
     }
@@ -221,14 +226,20 @@ export function onBossKilled(id) {
     toastLines('', '鲸尸沉底。七座钟同时静止——\n第八声，不属于这座城。');
   }
   if (id === 'margola') {
-    // 地狱新王 choice: sit the iron throne — retries until a safe moment
+    // 地狱新王 choice: sit the iron throne — retries until a safe moment.
+    // phase is re-checked when the dynamic import resolves (a microtask later
+    // the same frame may have opened a level-up card) and retried if needed.
     const tryShow = () => {
       if (!G.active || G.ended) return;
       if (G.phase !== 'play') { after(1.5, tryShow); return; }
-      import('../ui/screens.js').then(m => m.showThroneChoice({
-        onSit: () => triggerEnding('hellking'),
-        onLeave: () => { toastLines('', '你背过王座。前方是伪造的光。'); },
-      }));
+      import('../ui/screens.js').then(m => {
+        if (!G.active || G.ended) return;
+        if (G.phase !== 'play') { after(1.5, tryShow); return; }
+        m.showThroneChoice({
+          onSit: () => triggerEnding('hellking'),
+          onLeave: () => { toastLines('', '你背过王座。前方是伪造的光。'); },
+        });
+      });
     };
     after(1.5, tryShow);
     // advance unless the player took the throne
@@ -246,8 +257,12 @@ export function onBossKilled(id) {
     });
   }
   if (id === 'mother') {
-    G.phase = 'finalchoice';
-    setTimeout(() => {
+    // wait for a clean 'play' moment before freezing into the final choice —
+    // never stomp an open level-up (its close would un-pause the world)
+    const tryFinal = () => {
+      if (!G.active || G.ended) return;
+      if (G.phase !== 'play') { after(1, tryFinal); return; }
+      G.phase = 'finalchoice';
       showFinalChoice({
         canDawn: dawnConditionsMet(),
         onChoice: (choice) => {
@@ -268,7 +283,8 @@ export function onBossKilled(id) {
           else if (choice === 'enter') triggerEnding('eighthday');
         },
       });
-    }, 1600);
+    };
+    after(1.6, tryFinal);
   }
 }
 function maybeLeaveFakeHeaven() {
