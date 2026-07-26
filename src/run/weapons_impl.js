@@ -242,7 +242,7 @@ const FIRE = {
       G.projs.push({ type: 'ravenDive', x: d.x + G.rng() * 160 - 80, y: d.y - 240 - G.rng() * 60, tx: d.x + G.rng() * 160 - 80, ty: d.y + G.rng() * 120 - 60, t: 0, life: 0.55 + G.rng() * 0.3, dmg: st.damage * 0.6 * M(), r: 24 });
     }
     for (const e of G.enemies) {
-      if (!e.dead && e.isElite && e.hp < e.maxHp * 0.2) { e.executedBySin = true; dealDamage(e, e.hp / S().damage + 10, { noCrit: true, src: 'raven' }); num(e.x, e.y - 20, '吞噬', 'combo'); }
+      if (!e.dead && e.isElite && e.hp < e.maxHp * 0.2) { e.executedBySin = true; dealDamage(e, e.hp / S().damage + 10, { noCrit: true, execute: true, src: 'raven' }); num(e.x, e.y - 20, '吞噬', 'combo'); }
     }
   },
   /* —— 罪镜 —— */
