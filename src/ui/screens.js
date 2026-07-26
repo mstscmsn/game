@@ -230,7 +230,7 @@ export function modeSelect() {
   if ((META.stats.tribunalWins || 0) > 0) visited.push('hell');
   if ((META.bossKills.margola || 0) > 0) visited.push('fakeheaven');
   if ((META.bossKills.lambking || 0) > 0) visited.push('trueheaven');
-  const chDiv = el('div', 'sc-note', '章节狩猎 · 12分钟独立挑战：');
+  const chDiv = el('div', 'sc-note', '章节狩猎 · 6分钟独立挑战：');
   s.appendChild(el('div', 'divider'));
   s.appendChild(chDiv);
   for (const a of visited) {

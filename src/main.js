@@ -101,6 +101,7 @@ function update(dt) {
   if (G.blackSunT > 0) G.blackSunT -= gdt;
   if (G.ninthBellFx > 0) G.ninthBellFx -= gdt;
   if (G.silenceT > 0) G.silenceT -= gdt;
+  if (G.sinDeniedT > 0) G.sinDeniedT -= dt;
   G.lsWindow = (G.lsWindow || 0) + dt;
   if (G.lsWindow >= 1) { G.lsWindow = 0; G.lsAcc = 0; }
   updatePlayer(G.player, gdt);
@@ -127,7 +128,7 @@ function tickFx(dt) {
     const p = G.parts[i];
     p.t += dt;
     if (p.t > p.life) { G.parts.splice(i, 1); continue; }
-    if (!p.ring && !p.beam && !p.chainArc) { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.94; p.vy *= 0.94; }
+    if (!p.ring && !p.beam && !p.chainArc && !p.corpse) { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.94; p.vy *= 0.94; }
   }
   for (let i = G.nums.length - 1; i >= 0; i--) {
     G.nums[i].t += dt;

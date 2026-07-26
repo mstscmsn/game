@@ -33,7 +33,10 @@ function sprOf(e, frameB = false) {
   return c;
 }
 function shadow(ctx, x, y, rx, alpha = 0.3) {
-  ctx.fillStyle = `rgba(4,3,5,${alpha})`;
+  // skipped in low-fx mode and under extreme horde pressure
+  if (window.SETTINGS && window.SETTINGS.simpleFx) return;
+  if (G.enemies.length > 320) return;
+  ctx.fillStyle = alpha > 0.36 ? 'rgba(4,3,5,0.4)' : 'rgba(4,3,5,0.3)';
   ctx.beginPath(); ctx.ellipse(x, y, rx, rx * 0.38, 0, 0, TAU); ctx.fill();
 }
 
@@ -379,7 +382,8 @@ function drawParticles(ctx) {
       let c = base;
       if (pt.tint) {
         const key = pt.sprite + ':' + pt.tint + 'A';
-        if (tintCache.has(key)) c = tintCache.get(key);
+        if (!tintCache.has(key)) tintCache.set(key, variant(base, { tint: pt.tint, tintAlpha: 0.5 }));
+        c = tintCache.get(key);
       }
       ctx.save();
       ctx.globalAlpha = (1 - k) * 0.85;
@@ -572,9 +576,9 @@ function drawHUD(ctx, p) {
   ctx.fillStyle = heaven ? '#8a8069' : '#8f8570';
   ctx.fillText(G.area ? G.area.name : '', w / 2, py0 + 30);
   // progress ring: knell countdown once armed, else boss-approach for this area
-  if (!G.executed && (G.mode === 'pilgrimage' || G.mode === 'daily' || G.mode === 'chapter')) {
+  if ((G.mode === 'pilgrimage' || G.mode === 'daily' || G.mode === 'chapter') && G.areaId !== 'corridor') {
     let frac = 0, col = '#B58D3B';
-    if (isFinite(knell)) { frac = clamp(1 - toKnell / 60, 0, 1); col = '#D4474F'; }
+    if (!G.executed && isFinite(knell)) { frac = clamp(1 - toKnell / 60, 0, 1); col = '#D4474F'; }
     else if (G.boss) { frac = 1; col = '#D4474F'; }
     else if (G.area && G.area.boss) {
       const wait = G.mode === 'chapter' ? 300 : BAL.bossAfter;
@@ -709,7 +713,6 @@ function drawHUD(ctx, p) {
   const sinFrac = clamp(p.sin.charge / p.sin.need, 0, 1);
   const full = sinFrac >= 1;
   const pulse = full ? 1 + Math.sin(G.time * 7) * 0.06 : 1;
-  if (G.sinDeniedT > 0) { G.sinDeniedT -= 1 / 60; }
   ctx.globalAlpha = full ? 0.95 : 0.45;
   ctx.strokeStyle = G.sinDeniedT > 0 ? '#D4474F' : full ? '#D4474F' : boneCol;
   if (full) {         // charged: gold halo glow

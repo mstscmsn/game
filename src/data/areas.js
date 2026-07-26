@@ -1,4 +1,4 @@
-// Area definitions + pilgrimage timeline (docs §5, §12)
+// Area definitions (docs §12) — progression is boss-gated, see run/flow.js
 export const AREAS = {
   ashfield: { name: '灰葬原野', bg: 'ashfield', boss: 'anlo', music: 'ashfield',
     mech: '墓碑阻挡移动但可击碎；点燃蜡烛扩大拾取；灰雾周期降临' },

@@ -211,6 +211,8 @@ export function onBossKilled(id) {
     // 故真结局条件"没有杀死拉赫希尔"由 tribunalWon 本身承载。
     return;
   }
+  // 朝圣推进只属于朝圣/每日模式——章节狩猎与无尽击杀Boss不改变世界线
+  if (G.mode !== 'pilgrimage' && G.mode !== 'daily') return;
   if (id === 'anlo') scheduleNextArea('cathedral', '原野的祷文烧尽了。腐香从东面飘来。');
   if (id === 'mimi') scheduleNextArea('bells', '香炉熄灭。远处传来沉在水底的钟声。');
   if (id === 'whale') {
@@ -319,7 +321,7 @@ export function endRun(victory, reason) {
     const idx = order.indexOf(G.difficulty);
     META.unlockedDifficulty = Math.max(META.unlockedDifficulty, Math.min(4, idx + 2));
   }
-  // 棺中慈悲: died before 12min → mercy stack (pilgrimage runs only)
+  // 棺中慈悲: died before 5min (300s) → mercy stack (pilgrimage runs only)
   const pilgrimish = G.mode === 'pilgrimage' || G.mode === 'daily';
   if (pilgrimish && !victory && G.time < 300 && !G.executed) META.mercy = Math.min(2, META.mercy + 1);
   if (pilgrimish && (G.executed || victory)) META.mercy = 0;

@@ -688,10 +688,15 @@ export function buildSprites() {
   }
   for (const [id, rows] of Object.entries(ENEMY_ROWS)) {
     SPRITES.enemies[id] = refineSprite(px(rows, { scale: 3 }), 3);
-    SPRITES.enemiesB[id] = walkFrame(SPRITES.enemies[id], 3);
+    // walk frame only fits tall humanoid silhouettes; low/round bodies
+    // (centipede/crow/eyeball/lamb…) would tear — reuse frame A for those
+    SPRITES.enemiesB[id] = rows.length >= 9 ? walkFrame(SPRITES.enemies[id], 3) : SPRITES.enemies[id];
   }
   for (const [id, rows] of Object.entries(BOSS_ROWS)) SPRITES.bosses[id] = refineSprite(px(rows, { scale: 4 }), 4);
   for (const [id, rows] of Object.entries(MISC_ROWS)) SPRITES.misc[id] = px(rows, { scale: 3 });
+  // 宝箱拟态怪 uses the chest look as an enemy sprite
+  SPRITES.enemies.chest = SPRITES.misc.chest;
+  SPRITES.enemiesB.chest = SPRITES.misc.chest;
   // white silhouettes for the black-sun forbidden weapon & reaper scene + hit flash
   SPRITES.whiteOut = {};
   for (const [id, c] of Object.entries(SPRITES.enemies)) SPRITES.whiteOut[id] = variant(c, { tint: '#EEEBDD', tintAlpha: 1 });

@@ -37,9 +37,15 @@ jobs:
             ## 下载
             | 文件 | 说明 |
             |---|---|
-            | `anathema-v1.0-release.apk` | 安卓正式版（已签名，直接安装；Android 7.0+） |
-            | `anathema-v1.0-debug.apk` | 安卓调试版（便于侧载测试） |
+            | `anathema-v1.1-release.apk` | 安卓正式版（已签名，直接安装；Android 7.0+） |
+            | `anathema-v1.1-debug.apk` | 安卓调试版（便于侧载测试） |
             | `anathema-standalone.html` | 单文件 Web 版——下载后用浏览器打开即玩，无需服务器 |
+
+            ## v1.1 更新
+            - 章节推进改为 **Boss 门控**：进区约130秒后区域Boss降临，必须击败才进入下一章；每章约3分钟，整局约20分钟
+            - 美术精细化：精灵光照精修、双帧走路动画、受击白闪、尸体溶解、实体投影、环境飘尘、水面波光
+            - 修复：局外成长树无法购买且显示 undefined、经验球吸附抖动、罪技无充能反馈（充能速度翻倍）
+            - 重平衡：升级更快、Boss 血量与敌人成长按新节奏全面重调
 
             ## 内容
             - 完整朝圣世界线：死神处决 → 堕翼审判 → 地狱 → 假天堂（顺从值）→ 真天堂 → 5 结局
@@ -49,6 +55,6 @@ jobs:
 
             操作：左摇杆移动，右侧闪避与罪技；桌面 WASD + 空格 + Q。
           files: |
-            release/anathema-v1.0-release.apk
-            release/anathema-v1.0-debug.apk
+            release/anathema-v1.1-release.apk
+            release/anathema-v1.1-debug.apk
             release/anathema-standalone.html
