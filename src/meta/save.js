@@ -29,6 +29,7 @@ export const META = {
   settings: { shake: 1, flash: 1, dmgNumbers: 1, mergeNumbers: true, simpleFx: false, autoPickup: false, swapHands: false, sound: 1, music: 1, colorAssist: false },
   sinMarks: 0,             // 罪印难度层数 (self-imposed)
   lastRunSummary: null,
+  lastDifficulty: 'pilgrim', // remembered for double-tap quick start
 };
 
 export function loadMeta() {

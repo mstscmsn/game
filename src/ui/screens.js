@@ -276,7 +276,7 @@ function waiterTalk() {
 export function charSelect() {
   const s = screen();
   s.appendChild(el('div', 'sc-title', '缝尸台'));
-  s.appendChild(el('div', 'sc-sub', '选择将被重塑的身体'));
+  s.appendChild(el('div', 'sc-sub', '选择将被重塑的身体 · 双击直接出发'));
   let selected = META.lastRunSummary ? META.lastRunSummary.char : 'adric';
   if (!META.unlockedChars.includes(selected)) selected = 'adric';
   const grid = el('div', 'char-grid');
@@ -286,6 +286,12 @@ export function charSelect() {
     const w = WEAPON_BY_ID[c.weapon];
     detail.innerHTML = `<b>${c.name}</b><br>初始武器：${w.name} — ${w.desc}<br>特性：${c.trait}<br><span class="sin">罪技「${c.sin.name}」：${c.sin.desc}</span><br><i style="opacity:.7">${c.lore}</i>`;
   };
+  // double-tap a character = launch immediately with the last-used difficulty
+  const quickStart = () => {
+    const lastDiff = META.lastDifficulty && BAL.difficulties[META.lastDifficulty] ? META.lastDifficulty : 'pilgrim';
+    launch(selected, lastDiff, 0);
+  };
+  let lastTap = { id: null, t: 0 };
   for (const c of CHARACTERS) {
     const unlocked = isCharUnlocked(c);
     const card = el('div', 'char-card' + (unlocked ? '' : ' locked'));
@@ -295,6 +301,9 @@ export function charSelect() {
     if (!unlocked) card.appendChild(el('div', 'lk', '🔒 ' + (c.unlock.text || '')));
     card.addEventListener('click', () => {
       if (!unlocked) return;
+      const now = performance.now();
+      if (lastTap.id === c.id && now - lastTap.t < 380) { quickStart(); return; }
+      lastTap = { id: c.id, t: now };
       sfx.select();
       selected = c.id;
       grid.querySelectorAll('.char-card').forEach(x => x.classList.remove('sel'));
@@ -308,7 +317,8 @@ export function charSelect() {
   renderDetail();
   s.appendChild(detail);
   s.appendChild(el('div', 'divider'));
-  s.appendChild(btn('继续 · 选择难度', () => difficultySelect(selected), 'btn primary'));
+  s.appendChild(btn('出发（上次难度）', quickStart, 'btn primary'));
+  s.appendChild(btn('选择难度与罪印…', () => difficultySelect(selected), 'btn'));
   s.appendChild(btn('返回旅店', hubScreen, 'btn ghost'));
 }
 
@@ -341,6 +351,8 @@ function sinMarkSelect(charId, diff) {
   s.appendChild(btn('返回', () => difficultySelect(charId), 'btn ghost'));
 }
 function launch(charId, diff, sinMarks, mode = 'pilgrimage', areaId = 'ashfield') {
+  META.lastDifficulty = diff;
+  saveMeta();
   clear();
   startRunFn && startRunFn({ charId, difficulty: diff, sinMarks, mode, areaId });
 }
