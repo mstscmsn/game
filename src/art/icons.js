@@ -357,54 +357,923 @@ const DRAW = {
     glint(ctx, C - 10.6, C + 2, 0.9);
   },
   /* ---- misc / stats ---- */
-  hp(ctx) { ctx.fillStyle = COL.red; ctx.beginPath(); ctx.moveTo(C, C + 10); ctx.bezierCurveTo(C - 16, C - 2, C - 8, C - 14, C, C - 5); ctx.bezierCurveTo(C + 8, C - 14, C + 16, C - 2, C, C + 10); ctx.fill(); },
-  armor(ctx) { pen(ctx, COL.steel); poly(ctx, [[C, C - 12], [C + 10, C - 7], [C + 10, C + 4], [C, C + 12], [C - 10, C + 4], [C - 10, C - 7]]); ctx.fillStyle = 'rgba(154,161,168,.3)'; ctx.fill(); },
-  speed(ctx) { pen(ctx, COL.bone); for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.moveTo(C - 12, C - 6 + i * 6); ctx.lineTo(C + 6 - i * 2, C - 6 + i * 6); ctx.stroke(); } poly(ctx, [[C + 6, C - 12], [C + 14, C], [C + 6, C + 12]], false); },
-  dmg(ctx) { pen(ctx, COL.red); ln(ctx, C - 10, C + 12, C + 8, C - 10); ln(ctx, C + 4, C - 12, C + 12, C - 4); ln(ctx, C - 6, C + 2, C + 2, C + 10); pen(ctx, COL.dim, 2); ln(ctx, C - 12, C + 8, C - 8, C + 12); },
-  magnet(ctx) { pen(ctx, COL.gold, 3); ctx.beginPath(); ctx.arc(C, C - 2, 9, Math.PI, 0); ctx.stroke(); ln(ctx, C - 9, C - 2, C - 9, C + 8); ln(ctx, C + 9, C - 2, C + 9, C + 8); pen(ctx, COL.white, 3); ln(ctx, C - 9, C + 8, C - 9, C + 12); ln(ctx, C + 9, C + 8, C + 9, C + 12); },
-  cdr(ctx) { pen(ctx, COL.bone); cir(ctx, C, C, 12); ln(ctx, C, C, C, C - 8); ln(ctx, C, C, C + 6, C + 3); pen(ctx, COL.gold, 2); ctx.beginPath(); ctx.arc(C, C, 12, -0.5, 0.9); ctx.stroke(); },
-  xp(ctx) { ctx.fillStyle = COL.navy; poly(ctx, [[C, C - 12], [C + 9, C], [C, C + 12], [C - 9, C]], true); ctx.fillStyle = COL.white; poly(ctx, [[C, C - 5], [C + 4, C], [C, C + 5], [C - 4, C]], true); },
-  luck(ctx) { pen(ctx, COL.green); for (let i = 0; i < 3; i++) { const a = -Math.PI / 2 + i * Math.PI * 2 / 3; cir(ctx, C + Math.cos(a) * 6, C + Math.sin(a) * 6, 4.5); } ln(ctx, C, C + 4, C - 3, C + 13); },
-  crit(ctx) { pen(ctx, COL.red); cir(ctx, C, C, 11); cir(ctx, C, C, 5); ctx.fillStyle = COL.red; cir(ctx, C, C, 1.8, true); ln(ctx, C - 15, C, C - 8, C); ln(ctx, C + 8, C, C + 15, C); ln(ctx, C, C - 15, C, C - 8); ln(ctx, C, C + 8, C, C + 15); },
-  area(ctx) { pen(ctx, COL.bone); cir(ctx, C, C, 6); pen(ctx, 'rgba(216,199,164,.5)'); cir(ctx, C, C, 11); pen(ctx, 'rgba(216,199,164,.25)'); cir(ctx, C, C, 15); },
-  shield(ctx) { pen(ctx, COL.navy); poly(ctx, [[C, C - 12], [C + 10, C - 8], [C + 8, C + 6], [C, C + 12], [C - 8, C + 6], [C - 10, C - 8]]); pen(ctx, COL.white, 1.5); ln(ctx, C, C - 7, C, C + 7); },
-  revive(ctx) { pen(ctx, COL.green); ctx.beginPath(); ctx.arc(C, C, 10, 0.6, Math.PI * 2 + 0.1); ctx.stroke(); poly(ctx, [[C + 8, C - 8], [C + 14, C - 6], [C + 9, C - 1]], true); ctx.fillStyle = COL.green; ctx.fill(); },
-  skull(ctx) { ctx.fillStyle = COL.bone; cir(ctx, C, C - 2, 10, true); ctx.fillRect(C - 6, C + 4, 12, 6); ctx.fillStyle = COL.ink; cir(ctx, C - 4, C - 3, 2.5, true); cir(ctx, C + 4, C - 3, 2.5, true); poly(ctx, [[C, C + 1], [C - 2, C + 5], [C + 2, C + 5]], true); },
-  sun(ctx) { ctx.fillStyle = COL.ink; cir(ctx, C, C, 10, true); pen(ctx, COL.red); cir(ctx, C, C, 10); pen(ctx, COL.red, 1.5); for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; ln(ctx, C + Math.cos(a) * 12, C + Math.sin(a) * 12, C + Math.cos(a) * 16, C + Math.sin(a) * 16); } },
-  key(ctx) { pen(ctx, COL.gold); cir(ctx, C - 5, C - 5, 5); ln(ctx, C - 1, C - 1, C + 10, C + 10); ln(ctx, C + 7, C + 7, C + 11, C + 3); ln(ctx, C + 10, C + 10, C + 14, C + 6); },
-  eye(ctx) { pen(ctx, COL.bone); ctx.beginPath(); ctx.moveTo(C - 13, C); ctx.quadraticCurveTo(C, C - 11, C + 13, C); ctx.quadraticCurveTo(C, C + 11, C - 13, C); ctx.stroke(); ctx.fillStyle = COL.purple; cir(ctx, C, C, 4.5, true); },
-  ring(ctx) { pen(ctx, COL.gold); cir(ctx, C, C + 2, 8); ctx.fillStyle = COL.ink; poly(ctx, [[C, C - 14], [C + 5, C - 7], [C, C - 3], [C - 5, C - 7]], true); pen(ctx, COL.dim, 1); poly(ctx, [[C, C - 14], [C + 5, C - 7], [C, C - 3], [C - 5, C - 7]]); },
-  coin(ctx) { pen(ctx, COL.gold); cir(ctx, C, C, 11); ln(ctx, C, C - 7, C, C + 7); ln(ctx, C - 5, C - 4, C + 5, C - 4); ln(ctx, C - 5, C + 4, C + 5, C + 4); pen(ctx, COL.red, 1.5); ln(ctx, C - 11, C + 11, C + 11, C - 11); },
-  cord(ctx) { pen(ctx, COL.purple); ctx.beginPath(); ctx.moveTo(C - 12, C - 10); ctx.bezierCurveTo(C + 8, C - 14, C - 10, C + 8, C + 4, C + 4); ctx.stroke(); ctx.fillStyle = COL.red; cir(ctx, C + 6, C + 6, 4, true); },
-  needle(ctx) { pen(ctx, COL.steel); ln(ctx, C - 10, C + 12, C + 10, C - 12); cir(ctx, C + 10, C - 12, 2.5); pen(ctx, COL.red, 1.2); ctx.beginPath(); ctx.moveTo(C - 10, C + 12); ctx.quadraticCurveTo(C - 2, C + 2, C - 8, C - 6); ctx.stroke(); },
-  ledger(ctx) { pen(ctx, COL.dim); ctx.strokeRect(C - 9, C - 11, 18, 22); pen(ctx, COL.steel, 1.5); for (let i = 0; i < 4; i++) ln(ctx, C - 5, C - 6 + i * 4, C + 5, C - 6 + i * 4); pen(ctx, COL.steel, 2); ctx.beginPath(); ctx.ellipse(C, C, 13, 6, 0.7, 0, Math.PI * 2); ctx.stroke(); },
-  hourglass(ctx) { pen(ctx, COL.bone); ln(ctx, C - 8, C - 11, C + 8, C - 11); ln(ctx, C - 8, C + 11, C + 8, C + 11); ln(ctx, C - 8, C - 11, C + 8, C + 11); ln(ctx, C + 8, C - 11, C - 8, C + 11); pen(ctx, COL.ink, 1); ctx.fillStyle = '#3a3230'; poly(ctx, [[C - 4, C - 8], [C + 4, C - 8], [C, C - 2]], true); },
-  mask(ctx) { pen(ctx, COL.white); ctx.fillStyle = COL.white; ctx.beginPath(); ctx.ellipse(C, C, 9, 12, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.ellipse(C - 4, C - 3, 2, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.ellipse(C + 4, C - 3, 2, 3, 0, 0, Math.PI * 2); ctx.fill(); pen(ctx, COL.ink, 1.5); ctx.beginPath(); ctx.arc(C, C + 4, 4, 0.3, Math.PI - 0.3); ctx.stroke(); },
-  feather(ctx) { pen(ctx, COL.white); ctx.beginPath(); ctx.moveTo(C - 10, C + 12); ctx.quadraticCurveTo(C - 4, C - 14, C + 10, C - 12); ctx.quadraticCurveTo(C + 4, C + 4, C - 10, C + 12); ctx.stroke(); pen(ctx, COL.dim, 1.2); ln(ctx, C - 8, C + 10, C + 8, C - 10); pen(ctx, COL.orange, 1.5); ln(ctx, C + 8, C - 10, C + 11, C - 13); },
-  invite(ctx) { pen(ctx, COL.bone); ctx.strokeRect(C - 11, C - 8, 22, 16); ln(ctx, C - 11, C - 8, C, C + 2); ln(ctx, C + 11, C - 8, C, C + 2); ctx.fillStyle = COL.ink; cir(ctx, C, C + 3, 3.5, true); pen(ctx, COL.red, 1); cir(ctx, C, C + 3, 3.5); },
-  seedface(ctx) { pen(ctx, COL.steel); ctx.beginPath(); ctx.ellipse(C, C, 8, 11, 0, 0, Math.PI * 2); ctx.stroke(); pen(ctx, COL.steel, 1.5); ln(ctx, C - 3, C - 3, C - 1, C - 3); ln(ctx, C + 1, C - 3, C + 3, C - 3); ctx.beginPath(); ctx.arc(C, C + 3, 3, 0.2, Math.PI - 0.2); ctx.stroke(); pen(ctx, COL.green, 1.5); ln(ctx, C, C - 11, C - 4, C - 16); },
-  bottle(ctx) { pen(ctx, COL.bone); ctx.strokeRect(C - 6, C - 4, 12, 15); ln(ctx, C - 3, C - 4, C - 3, C - 12); ln(ctx, C + 3, C - 4, C + 3, C - 12); ln(ctx, C - 5, C - 12, C + 5, C - 12); ctx.fillStyle = COL.orange; ctx.fillRect(C - 5, C + 3, 10, 7); ctx.fillStyle = COL.red; ctx.fillRect(C - 5, C + 1, 10, 2); },
-  dice(ctx) { pen(ctx, COL.bone); poly(ctx, [[C, C - 13], [C + 11, C - 6], [C + 11, C + 6], [C, C + 13], [C - 11, C + 6], [C - 11, C - 6]]); ln(ctx, C, C - 13, C, C); ln(ctx, C - 11, C + 6, C, C); ln(ctx, C + 11, C + 6, C, C); ctx.fillStyle = COL.red; cir(ctx, C, C - 6, 1.5, true); cir(ctx, C - 5, C + 5, 1.5, true); cir(ctx, C + 5, C + 5, 1.5, true); },
-  statue(ctx) { pen(ctx, COL.dim); ln(ctx, C - 7, C - 12, C + 7, C - 12); ln(ctx, C, C - 12, C, C + 6); ln(ctx, C - 5, C - 7, C + 5, C - 7); pen(ctx, COL.dim, 3); ln(ctx, C - 7, C + 12, C + 7, C + 12); ln(ctx, C - 5, C + 9, C + 5, C + 9); },
-  salt(ctx) { pen(ctx, COL.bone); poly(ctx, [[C - 8, C - 8], [C + 8, C - 8], [C + 10, C + 10], [C - 10, C + 10]]); ln(ctx, C - 6, C - 8, C - 4, C - 13); ln(ctx, C + 6, C - 8, C + 4, C - 13); ctx.fillStyle = COL.ink; for (let i = 0; i < 8; i++) { const a = i * 2.4; ctx.fillRect(C - 6 + (i % 4) * 4, C - 2 + ((i / 4) | 0) * 5, 2, 2); } },
-  mercyknife(ctx) { pen(ctx, COL.steel); poly(ctx, [[C - 3, C - 13], [C + 3, C - 13], [C + 3, C + 3], [C, C + 6], [C - 3, C + 3]]); ln(ctx, C - 7, C + 6, C + 7, C + 6); ln(ctx, C, C + 6, C, C + 13); pen(ctx, COL.white, 1); ln(ctx, C, C - 10, C, C + 1); },
-  crownempty(ctx) { pen(ctx, COL.gold); poly(ctx, [[C - 11, C + 8], [C - 11, C - 4], [C - 5, C + 1], [C, C - 8], [C + 5, C + 1], [C + 11, C - 4], [C + 11, C + 8]]); pen(ctx, COL.dim, 1); ln(ctx, C - 8, C + 12, C + 8, C + 12); },
-  tooth(ctx) { pen(ctx, COL.bone); ctx.fillStyle = COL.bone; ctx.beginPath(); ctx.moveTo(C - 7, C - 8); ctx.quadraticCurveTo(C, C - 14, C + 7, C - 8); ctx.quadraticCurveTo(C + 8, C + 2, C + 4, C + 10); ctx.lineTo(C + 2, C + 4); ctx.quadraticCurveTo(C, C + 2, C - 2, C + 4); ctx.lineTo(C - 4, C + 10); ctx.quadraticCurveTo(C - 8, C + 2, C - 7, C - 8); ctx.fill(); ctx.fillStyle = COL.red; cir(ctx, C, C - 6, 1.5, true); },
-  nail(ctx) { pen(ctx, COL.gold, 3); ln(ctx, C - 8, C - 10, C + 2, C - 10); pen(ctx, COL.gold, 2.5); ln(ctx, C - 3, C - 10, C + 8, C + 12); poly(ctx, [[C + 8, C + 12], [C + 10, C + 7], [C + 5, C + 9]], true); },
-  candleblack(ctx) { pen(ctx, COL.ink); ctx.fillStyle = '#1b171c'; ctx.fillRect(C - 4, C - 6, 8, 18); pen(ctx, COL.dim, 1); ctx.strokeRect(C - 4, C - 6, 8, 18); ctx.fillStyle = COL.orange; ctx.beginPath(); ctx.ellipse(C, C - 11, 3, 5, 0, 0, Math.PI * 2); ctx.fill(); },
-  vial(ctx) { pen(ctx, COL.bone); cir(ctx, C, C + 4, 8); ctx.fillStyle = COL.red; ctx.beginPath(); ctx.arc(C, C + 4, 8, 0.3, Math.PI - 0.3); ctx.fill(); ln(ctx, C - 3, C - 4, C - 3, C - 12); ln(ctx, C + 3, C - 4, C + 3, C - 12); },
-  glasseye(ctx) { pen(ctx, COL.steel); cir(ctx, C, C, 10); ctx.fillStyle = COL.navy; cir(ctx, C, C, 5, true); ctx.fillStyle = COL.white; cir(ctx, C - 2, C - 2, 1.5, true); pen(ctx, COL.steel, 1); cir(ctx, C, C, 13); },
-  rosary(ctx) { pen(ctx, COL.steel); cir(ctx, C, C - 2, 9); ctx.fillStyle = COL.red; for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; cir(ctx, C + Math.cos(a) * 9, C - 2 + Math.sin(a) * 9, 1.6, true); } pen(ctx, COL.steel, 1.5); ln(ctx, C, C + 7, C, C + 13); ln(ctx, C - 3, C + 10, C + 3, C + 10); },
-  ratking(ctx) { pen(ctx, COL.dim); ctx.fillStyle = COL.dim; ctx.beginPath(); ctx.ellipse(C - 3, C + 2, 7, 5, 0.3, 0, Math.PI * 2); ctx.fill(); poly(ctx, [[C + 3, C - 1], [C + 10, C - 5], [C + 8, C + 1]], true); pen(ctx, COL.bone, 1.5); ln(ctx, C + 7, C - 2, C + 9, C + 2); ctx.beginPath(); ctx.moveTo(C - 9, C + 4); ctx.quadraticCurveTo(C - 15, C + 8, C - 11, C + 12); ctx.stroke(); },
-  gravehand(ctx) { pen(ctx, COL.dim); ctx.strokeRect(C - 8, C - 4, 16, 16); pen(ctx, COL.bone, 2); for (let i = 0; i < 4; i++) ln(ctx, C - 5 + i * 3.5, C - 4, C - 5 + i * 3.5, C - 12 + (i % 2) * 2); },
-  gunpowder(ctx) { pen(ctx, COL.gold); ctx.strokeRect(C - 9, C - 7, 18, 16); ln(ctx, C - 9, C - 1, C + 9, C - 1); ctx.fillStyle = COL.orange; cir(ctx, C, C + 4, 3, true); pen(ctx, COL.red, 1.2); ln(ctx, C, C - 7, C, C - 13); cir(ctx, C, C - 14, 1.5); },
-  boneoil(ctx) { pen(ctx, COL.bone); cir(ctx, C, C + 5, 8); ln(ctx, C - 3, C - 3, C - 4, C - 12); ln(ctx, C + 3, C - 3, C + 4, C - 12); ctx.fillStyle = '#3a3230'; ctx.beginPath(); ctx.arc(C, C + 5, 8, 0.4, Math.PI - 0.4); ctx.fill(); pen(ctx, COL.bone, 1.5); ln(ctx, C - 6, C - 14, C - 2, C - 14); ln(ctx, C + 2, C - 14, C + 6, C - 14); },
-  tongue(ctx) { pen(ctx, COL.red); ctx.fillStyle = COL.red; ctx.beginPath(); ctx.moveTo(C - 6, C - 10); ctx.quadraticCurveTo(C - 8, C + 6, C, C + 12); ctx.quadraticCurveTo(C + 8, C + 6, C + 6, C - 10); ctx.closePath(); ctx.fill(); pen(ctx, COL.ink, 1.5); ln(ctx, C, C - 6, C, C + 8); pen(ctx, COL.steel, 1.5); ln(ctx, C - 8, C - 10, C + 8, C - 10); },
-  silkstring(ctx) { pen(ctx, COL.white, 1.5); for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.moveTo(C - 12, C - 8 + i * 8); ctx.quadraticCurveTo(C, C - 14 + i * 8, C + 12, C - 8 + i * 8); ctx.stroke(); } pen(ctx, COL.red, 2); ln(ctx, C, C - 12, C, C + 12); },
-  twinmask(ctx) { pen(ctx, COL.white); ctx.beginPath(); ctx.ellipse(C - 5, C - 2, 6, 9, -0.2, 0, Math.PI * 2); ctx.stroke(); pen(ctx, COL.ink); ctx.fillStyle = '#1b171c'; ctx.beginPath(); ctx.ellipse(C + 5, C + 2, 6, 9, 0.2, 0, Math.PI * 2); ctx.fill(); pen(ctx, COL.dim, 1); ctx.stroke(); },
-  ashfeather(ctx) { pen(ctx, COL.dim); ctx.beginPath(); ctx.moveTo(C - 10, C + 12); ctx.quadraticCurveTo(C - 2, C - 12, C + 10, C - 12); ctx.quadraticCurveTo(C + 2, C + 6, C - 10, C + 12); ctx.stroke(); pen(ctx, COL.dim, 1); ln(ctx, C - 7, C + 9, C + 7, C - 9); },
-  heartscar(ctx) { ctx.fillStyle = COL.blood; ctx.beginPath(); ctx.moveTo(C, C + 10); ctx.bezierCurveTo(C - 15, C - 2, C - 7, C - 13, C, C - 4); ctx.bezierCurveTo(C + 7, C - 13, C + 15, C - 2, C, C + 10); ctx.fill(); pen(ctx, COL.bone, 1.5); ln(ctx, C - 5, C - 6, C + 4, C + 4); ln(ctx, C - 1, C - 8, C - 3, C - 2); },
-  belltongueIcon(ctx) { pen(ctx, COL.gold, 3); ln(ctx, C, C - 12, C, C + 4); ctx.fillStyle = COL.gold; cir(ctx, C, C + 8, 5, true); pen(ctx, COL.dim, 1.5); ctx.beginPath(); ctx.arc(C, C - 12, 5, Math.PI, 0); ctx.stroke(); ln(ctx, C - 8, C + 14, C - 4, C + 10); },
+  hp(ctx) {
+    const heart = (s) => { ctx.beginPath(); ctx.moveTo(C, C + 13 * s); ctx.bezierCurveTo(C - 17 * s, C + 1 * s, C - 9.5 * s, C - 12 * s, C, C - 4 * s); ctx.bezierCurveTo(C + 9.5 * s, C - 12 * s, C + 17 * s, C + 1 * s, C, C + 13 * s); ctx.closePath(); };
+    heart(1.12); ctx.fillStyle = COL.bloodD; ctx.fill();
+    heart(1); ctx.fillStyle = lg(ctx, C - 8, C - 10, C + 8, C + 10, [[0, COL.red], [0.55, COL.blood], [1, COL.bloodD]]); ctx.fill();
+    // cleft shadow between the lobes
+    pen(ctx, COL.bloodD, 1.6); ctx.beginPath(); ctx.moveTo(C, C - 4); ctx.quadraticCurveTo(C - 0.6, C, C, C + 4); ctx.stroke();
+    // wet highlight on the left lobe
+    pen(ctx, 'rgba(238,235,221,.75)', 1.6); ctx.beginPath(); ctx.moveTo(C - 9, C - 4.5); ctx.quadraticCurveTo(C - 10.5, C - 1, C - 7.5, C + 3); ctx.stroke();
+    glint(ctx, C - 6.5, C - 6, 1.2);
+    // falling drip
+    dot(ctx, C + 5, C + 13.5, 1.2, COL.red);
+  },
+  armor(ctx) {
+    // hammered plate: dark backing, cold-steel face
+    const plate = [[C, C - 15], [C + 12, C - 9], [C + 12, C + 5], [C, C + 15], [C - 12, C + 5], [C - 12, C - 9]];
+    ctx.fillStyle = COL.steelD; poly(ctx, plate, true);
+    ctx.fillStyle = lg(ctx, C - 10, C - 12, C + 10, C + 12, [[0, COL.steelL], [0.5, COL.steel], [1, COL.steelD]]);
+    poly(ctx, [[C, C - 13], [C + 10, C - 7.6], [C + 10, C + 4], [C, C + 12.6], [C - 10, C + 4], [C - 10, C - 7.6]], true);
+    pen(ctx, COL.steelD, 1.2); poly(ctx, plate);
+    // rivets at every corner
+    for (const [x, y] of [[C, C - 12], [C + 8.6, C - 7], [C + 8.6, C + 3.4], [C, C + 11.4], [C - 8.6, C + 3.4], [C - 8.6, C - 7]]) { dot(ctx, x, y, 1, COL.steelD); glint(ctx, x - 0.4, y - 0.4, 0.5); }
+    // engraved boss + gold inlay cross
+    pen(ctx, COL.steelD, 1.1); cir(ctx, C, C - 1, 5.2);
+    pen(ctx, COL.gold, 1.4); ln(ctx, C, C - 6.5, C, C + 4.5); ln(ctx, C - 4, C - 2.5, C + 4, C - 2.5);
+    glint(ctx, C - 5.5, C - 8, 1.1);
+  },
+  speed(ctx) {
+    // wake streaks: dark under-stroke, bone face
+    for (let i = 0; i < 3; i++) {
+      const y = C - 7 + i * 7, x2 = C + 1 - i * 3;
+      pen(ctx, COL.boneD, 3.2); ln(ctx, C - 15, y, x2, y);
+      pen(ctx, i === 1 ? COL.boneL : COL.bone, 1.5); ln(ctx, C - 15, y, x2, y);
+    }
+    // gale head: layered chevrons, the front one polished bright
+    const chev = (dx, col, w) => { pen(ctx, col, w); ctx.beginPath(); ctx.moveTo(C + dx, C - 12); ctx.lineTo(C + dx + 8.5, C); ctx.lineTo(C + dx, C + 12); ctx.stroke(); };
+    chev(6, COL.boneD, 4.8); chev(6, COL.boneL, 2.2);
+    chev(-1.5, COL.boneD, 3.6); chev(-1.5, COL.bone, 1.5);
+    // dust motes kicked loose
+    dot(ctx, C - 13.5, C - 11.5, 1, COL.dim); dot(ctx, C - 11, C + 12.5, 0.8, COL.dim);
+    glint(ctx, C + 13, C - 1.5, 1);
+  },
+  dmg(ctx) {
+    // motion arcs trailing below the rising slash
+    pen(ctx, 'rgba(142,31,47,.8)', 2); ctx.beginPath(); ctx.arc(C - 20, C + 12, 26, -0.72, -0.1); ctx.stroke();
+    pen(ctx, 'rgba(212,71,79,.5)', 1.1); ctx.beginPath(); ctx.arc(C - 20, C + 12, 30.5, -0.66, -0.14); ctx.stroke();
+    // blade: steel gradient flat, bright edge
+    const B = [[C + 12, C - 13], [C + 14.5, C - 8], [C - 5, C + 9], [C - 8.5, C + 5.5]];
+    ctx.fillStyle = lg(ctx, C + 2, C - 6, C + 6, C, [[0, COL.steelL], [0.55, COL.steel], [1, COL.steelD]]);
+    poly(ctx, B, true);
+    pen(ctx, COL.steelD, 1); poly(ctx, B);
+    pen(ctx, COL.white, 1); ln(ctx, C + 12.5, C - 11, C - 6, C + 6.5);
+    // brass crossguard, wrapped grip, gold pommel
+    pen(ctx, COL.goldD, 3); ln(ctx, C - 11.5, C + 3.5, C - 4.5, C + 11);
+    pen(ctx, COL.goldL, 1.2); ln(ctx, C - 10.8, C + 3.8, C - 5, C + 10);
+    pen(ctx, COL.woodD, 3.2); ln(ctx, C - 9.5, C + 8.5, C - 13.5, C + 12.5);
+    pen(ctx, COL.wood, 1.6); ln(ctx, C - 10, C + 9, C - 13, C + 12);
+    dot(ctx, C - 14.5, C + 13.5, 1.7, COL.gold); glint(ctx, C - 15, C + 13, 0.6);
+    // sparks flying off the tip
+    dot(ctx, C + 15.5, C - 15, 1, COL.ember); dot(ctx, C + 11.5, C - 16.5, 0.7, COL.ember);
+    glint(ctx, C + 11, C - 10.5, 0.9);
+  },
+  magnet(ctx) {
+    // field lines arcing between the poles
+    pen(ctx, 'rgba(226,189,102,.55)', 1); ctx.beginPath(); ctx.arc(C, C + 10, 5.5, 0.5, 2.64); ctx.stroke();
+    pen(ctx, 'rgba(226,189,102,.3)', 1); ctx.beginPath(); ctx.arc(C, C + 10, 9, 0.45, 2.7); ctx.stroke();
+    // horseshoe: dark iron core under blood lacquer
+    const horse = (col, w) => { pen(ctx, col, w); ctx.beginPath(); ctx.arc(C, C - 3, 9.5, Math.PI, 0); ctx.stroke(); ln(ctx, C - 9.5, C - 3, C - 9.5, C + 7); ln(ctx, C + 9.5, C - 3, C + 9.5, C + 7); };
+    horse('#4a1017', 6.6); horse(COL.blood, 4.2);
+    // lacquer highlight along the outer crown
+    pen(ctx, 'rgba(238,235,221,.5)', 1.1); ctx.beginPath(); ctx.arc(C, C - 3, 11, -2.75, -1.35); ctx.stroke();
+    pen(ctx, COL.red, 1); ctx.beginPath(); ctx.arc(C, C - 3, 9.5, -2.9, -0.25); ctx.stroke();
+    // steel pole shoes with a milled face
+    for (const sx of [-1, 1]) {
+      const x = C + sx * 9.5 - 3.3;
+      ctx.fillStyle = COL.steelD; ctx.fillRect(x, C + 7, 6.6, 6);
+      ctx.fillStyle = lg(ctx, x, C + 7, x, C + 13, [[0, COL.steelL], [1, COL.steel]]); ctx.fillRect(x + 0.6, C + 7.6, 5.4, 4.6);
+      pen(ctx, COL.steelD, 0.8); ln(ctx, x + 0.6, C + 10, x + 6, C + 10);
+    }
+    glint(ctx, C - 11, C + 8.4, 0.8);
+    // caught mote being pulled in
+    dot(ctx, C, C + 14.5, 1.2, COL.gold); glint(ctx, C - 0.4, C + 14.1, 0.4);
+  },
+  cdr(ctx) {
+    // winding crown
+    pen(ctx, COL.goldD, 2.6); ln(ctx, C, C - 13.5, C, C - 16);
+    pen(ctx, COL.goldL, 1.2); ln(ctx, C - 1.6, C - 15.8, C + 1.6, C - 15.8);
+    // bronze case: dark bezel, warm rim, night face
+    dot(ctx, C, C + 1, 14, COL.goldD);
+    ctx.fillStyle = lg(ctx, C - 10, C - 10, C + 10, C + 12, [[0, '#2b2432'], [1, '#17141b']]); cir(ctx, C, C + 1, 11.4, true);
+    pen(ctx, COL.gold, 1.6); cir(ctx, C, C + 1, 12.6);
+    pen(ctx, COL.goldL, 0.9); ctx.beginPath(); ctx.arc(C, C + 1, 12.6, -2.6, -1.2); ctx.stroke();
+    // hour marks: bold quarters, faint the rest
+    for (let i = 0; i < 12; i++) {
+      const a = i / 12 * Math.PI * 2, q = i % 3 === 0;
+      pen(ctx, q ? COL.bone : COL.dim, q ? 1.2 : 0.8);
+      ln(ctx, C + Math.cos(a) * (q ? 8.4 : 9.4), C + 1 + Math.sin(a) * (q ? 8.4 : 9.4), C + Math.cos(a) * 10.4, C + 1 + Math.sin(a) * 10.4);
+    }
+    // the rewound quarter burns gold
+    pen(ctx, COL.ember, 1.6); ctx.beginPath(); ctx.arc(C, C + 1, 6.8, -Math.PI / 2, 0.15); ctx.stroke();
+    ctx.fillStyle = COL.ember; poly(ctx, [[C + 6.3, C + 5.2], [C + 5.1, C + 1.5], [C + 8.3, C + 2.3]], true);
+    // hands + jewelled cannon pinion
+    pen(ctx, COL.boneL, 1.8); ln(ctx, C, C + 1, C, C - 5.8);
+    pen(ctx, COL.bone, 1.4); ln(ctx, C, C + 1, C + 4.6, C + 3.4);
+    dot(ctx, C, C + 1, 1.6, COL.gold); dot(ctx, C, C + 1, 0.6, COL.ink);
+    // glass sheen
+    glint(ctx, C - 5, C - 4.5, 1.1);
+  },
+  xp(ctx) {
+    // cut soulstone: four facets, four depths
+    const T = [C, C - 14.5], R = [C + 11, C - 1], Bm = [C, C + 14.5], L = [C - 11, C - 1], M = [C, C - 1];
+    ctx.fillStyle = '#131a29'; poly(ctx, [T, R, Bm, L], true);
+    ctx.fillStyle = '#5b7292'; poly(ctx, [T, L, M], true);
+    ctx.fillStyle = COL.navy; poly(ctx, [T, R, M], true);
+    ctx.fillStyle = '#2a3448'; poly(ctx, [L, Bm, M], true);
+    ctx.fillStyle = '#1c2438'; poly(ctx, [R, Bm, M], true);
+    pen(ctx, '#131a29', 1.1); poly(ctx, [T, R, Bm, L]);
+    // facet seams catching light
+    pen(ctx, 'rgba(238,235,221,.45)', 0.9); ln(ctx, L[0], L[1], R[0], R[1]); ln(ctx, T[0], T[1], Bm[0], Bm[1]);
+    // hard sparkle + inner glow
+    glint(ctx, C - 4.5, C - 6.5, 1.3); glint(ctx, C + 3, C + 3.5, 0.7);
+    dot(ctx, C - 1, C + 6.5, 1, 'rgba(125,156,201,.6)');
+    // stray motes drifting toward the stone
+    dot(ctx, C - 13.5, C + 9, 1, '#7d9cc9'); dot(ctx, C + 14, C + 6, 0.8, '#5b7292'); dot(ctx, C + 12.5, C - 10.5, 0.7, '#5b7292');
+  },
+  luck(ctx) {
+    // bending stem: shadow + lit blade
+    pen(ctx, '#3d4a37', 2.8); ctx.beginPath(); ctx.moveTo(C + 1, C + 4); ctx.quadraticCurveTo(C + 1.5, C + 11, C - 3.5, C + 16); ctx.stroke();
+    pen(ctx, COL.green, 1.3); ctx.beginPath(); ctx.moveTo(C + 0.5, C + 4); ctx.quadraticCurveTo(C + 1, C + 10.5, C - 3, C + 15.5); ctx.stroke();
+    // three heart-leaves: dark base, lit face, crease
+    const leaf = (a) => {
+      ctx.save(); ctx.translate(C + Math.cos(a) * 9, C - 2.5 + Math.sin(a) * 9); ctx.rotate(a + Math.PI / 2);
+      const hs = (s, col) => { ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(0, 6 * s); ctx.bezierCurveTo(-8.3 * s, -0.8 * s, -4.4 * s, -6.5 * s, 0, -2.1 * s); ctx.bezierCurveTo(4.4 * s, -6.5 * s, 8.3 * s, -0.8 * s, 0, 6 * s); ctx.fill(); };
+      hs(1.14, '#3d4a37'); hs(1, COL.green);
+      ctx.fillStyle = 'rgba(238,235,221,.25)'; ctx.beginPath(); ctx.moveTo(0, 4.7); ctx.bezierCurveTo(-6, -0.8, -3.4, -4.7, 0, -1.6); ctx.closePath(); ctx.fill();
+      pen(ctx, '#3d4a37', 1); ln(ctx, 0, 4.7, 0, -3.4);
+      ctx.restore();
+    };
+    leaf(-Math.PI / 2); leaf(Math.PI / 6); leaf(Math.PI - Math.PI / 6);
+    // dew drop on the crown leaf
+    glint(ctx, C - 5.5, C - 10.5, 1.2);
+    dot(ctx, C + 11, C - 13, 0.7, 'rgba(117,135,107,.8)');
+  },
+  crit(ctx) {
+    // steel scope ring: dark under, machined face, glass glare
+    pen(ctx, COL.steelD, 3.4); cir(ctx, C, C, 11.5);
+    pen(ctx, COL.steel, 1.4); cir(ctx, C, C, 11.5);
+    pen(ctx, 'rgba(201,206,212,.85)', 0.9); ctx.beginPath(); ctx.arc(C, C, 11.5, -2.7, -1.4); ctx.stroke();
+    // crosshair spars: blood core on dark
+    for (const [x1, y1, x2, y2] of [[C - 17, C, C - 7.5, C], [C + 7.5, C, C + 17, C], [C, C - 17, C, C - 7.5], [C, C + 7.5, C, C + 17]]) {
+      pen(ctx, COL.bloodD, 2.8); ln(ctx, x1, y1, x2, y2);
+      pen(ctx, COL.red, 1.3); ln(ctx, x1, y1, x2, y2);
+    }
+    // range ticks
+    pen(ctx, COL.red, 1); ln(ctx, C - 14, C - 2, C - 14, C + 2); ln(ctx, C + 14, C - 2, C + 14, C + 2); ln(ctx, C - 2, C - 14, C + 2, C - 14);
+    // inner reticle + wet blood-drop centre
+    pen(ctx, 'rgba(212,71,79,.8)', 1); cir(ctx, C, C, 5.4);
+    dot(ctx, C, C, 2.7, COL.bloodD); dot(ctx, C - 0.2, C - 0.2, 1.9, COL.red); glint(ctx, C - 0.8, C - 0.9, 0.6);
+  },
+  area(ctx) {
+    // shockwaves fading with distance, bright leading edge upper-left
+    for (const [r, a] of [[15.5, 0.35], [11, 0.6]]) {
+      pen(ctx, `rgba(138,122,86,${a})`, 2.4); cir(ctx, C, C, r);
+      pen(ctx, `rgba(238,224,189,${a + 0.2})`, 1); ctx.beginPath(); ctx.arc(C, C, r, -2.8, -0.9); ctx.stroke();
+    }
+    // burst ticks between the waves
+    pen(ctx, 'rgba(216,199,164,.55)', 1);
+    for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2 + 0.39; ln(ctx, C + Math.cos(a) * 12.6, C + Math.sin(a) * 12.6, C + Math.cos(a) * 14, C + Math.sin(a) * 14); }
+    // molten epicentre: ember glow under a bone collar
+    const rg = ctx.createRadialGradient(C, C, 0.5, C, C, 7.5);
+    rg.addColorStop(0, 'rgba(240,168,90,.9)'); rg.addColorStop(1, 'rgba(240,168,90,0)');
+    ctx.fillStyle = rg; cir(ctx, C, C, 7.5, true);
+    pen(ctx, COL.boneD, 2.6); cir(ctx, C, C, 6);
+    pen(ctx, COL.boneL, 1.2); cir(ctx, C, C, 6);
+    dot(ctx, C, C, 2.2, COL.ember); dot(ctx, C - 0.5, C - 0.7, 1, COL.flameCore);
+  },
+  shield(ctx) {
+    // heater shield: night-blue field over a dark backing
+    const sh = (s) => { ctx.beginPath(); ctx.moveTo(C, C - 13.5 * s); ctx.quadraticCurveTo(C + 10.5 * s, C - 11.5 * s, C + 11 * s, C - 7 * s); ctx.quadraticCurveTo(C + 11 * s, C + 4 * s, C, C + 14.5 * s); ctx.quadraticCurveTo(C - 11 * s, C + 4 * s, C - 11 * s, C - 7 * s); ctx.quadraticCurveTo(C - 10.5 * s, C - 11.5 * s, C, C - 13.5 * s); ctx.closePath(); };
+    sh(1.12); ctx.fillStyle = '#131a29'; ctx.fill();
+    sh(1); ctx.fillStyle = lg(ctx, C - 8, C - 12, C + 8, C + 12, [[0, '#5b7292'], [0.45, COL.navy], [1, '#1c2438']]); ctx.fill();
+    pen(ctx, '#131a29', 1.1); sh(1); ctx.stroke();
+    // riveted steel chief band
+    pen(ctx, COL.steelD, 2.8); ctx.beginPath(); ctx.moveTo(C - 10.5, C - 8.5); ctx.quadraticCurveTo(C, C - 11.5, C + 10.5, C - 8.5); ctx.stroke();
+    pen(ctx, COL.steelL, 1.1); ctx.beginPath(); ctx.moveTo(C - 10, C - 9); ctx.quadraticCurveTo(C, C - 12, C + 10, C - 9); ctx.stroke();
+    for (const dx of [-6.5, 0, 6.5]) dot(ctx, C + dx, C - 9.7 + (dx ? 0.7 : 0), 0.8, COL.steelD);
+    // bone cross charge
+    pen(ctx, COL.boneD, 3.2); ln(ctx, C, C - 4.5, C, C + 8); ln(ctx, C - 5, C - 0.5, C + 5, C - 0.5);
+    pen(ctx, COL.boneL, 1.4); ln(ctx, C, C - 4.5, C, C + 8); ln(ctx, C - 5, C - 0.5, C + 5, C - 0.5);
+    // moonlit edge
+    pen(ctx, 'rgba(125,156,201,.6)', 1); ctx.beginPath(); ctx.moveTo(C - 9.5, C - 6.5); ctx.quadraticCurveTo(C - 9.8, C + 2, C - 3.5, C + 9.5); ctx.stroke();
+    glint(ctx, C - 5.5, C - 5.5, 1);
+  },
+  revive(ctx) {
+    // cycle: dark under-arc, living green face, moonlit crest
+    const arc = (col, w) => { pen(ctx, col, w); ctx.beginPath(); ctx.arc(C, C + 1, 11.5, 0.55, Math.PI * 2 - 0.35); ctx.stroke(); };
+    arc('#3d4a37', 3.6); arc(COL.green, 1.7);
+    pen(ctx, 'rgba(238,235,221,.55)', 0.9); ctx.beginPath(); ctx.arc(C, C + 1, 11.5, -2.7, -1.6); ctx.stroke();
+    // arrowhead biting into the gap on the right
+    const ax = C + 11.8, ay = C + 0.4;
+    ctx.fillStyle = '#3d4a37'; poly(ctx, [[ax - 4.2, ay - 3.4], [ax + 4, ay - 1.6], [ax - 2.4, ay + 4.2]], true);
+    ctx.fillStyle = COL.green; poly(ctx, [[ax - 3, ay - 2.2], [ax + 2.6, ay - 1], [ax - 1.8, ay + 2.8]], true);
+    // sprout rising through the ring: wood stem, two leaves
+    pen(ctx, COL.woodD, 2.6); ln(ctx, C, C + 9, C, C - 3);
+    pen(ctx, COL.wood, 1.2); ln(ctx, C + 0.3, C + 8.5, C + 0.3, C - 2.5);
+    const leafP = (sx) => { ctx.fillStyle = COL.green; ctx.beginPath(); ctx.moveTo(C, C - 2); ctx.quadraticCurveTo(C + 5.5 * sx, C - 3.5, C + 6.8 * sx, C - 8); ctx.quadraticCurveTo(C + 1.5 * sx, C - 7, C, C - 2); ctx.fill(); };
+    leafP(1); leafP(-1);
+    pen(ctx, 'rgba(238,235,221,.5)', 0.8); ln(ctx, C + 1.2, C - 3.2, C + 4.8, C - 6.8);
+    glint(ctx, C - 5, C - 5.5, 0.9);
+  },
+  skull(ctx) {
+    // cranium: shadowed base under a lit bone dome
+    dot(ctx, C, C - 2.5, 11.4, COL.boneD);
+    ctx.fillStyle = lg(ctx, C - 8, C - 12, C + 8, C + 8, [[0, COL.boneL], [0.55, COL.bone], [1, COL.boneD]]);
+    cir(ctx, C - 0.3, C - 2.8, 10.6, true);
+    // jaw with teeth
+    ctx.fillStyle = COL.boneD; ctx.fillRect(C - 6.5, C + 5, 13, 8);
+    ctx.fillStyle = COL.bone; ctx.fillRect(C - 6, C + 5, 12, 7);
+    pen(ctx, COL.boneD, 1); ln(ctx, C - 6, C + 8.5, C + 6, C + 8.5);
+    for (const dx of [-3, 0, 3]) ln(ctx, C + dx, C + 8.5, C + dx, C + 11.8);
+    // sockets: ink pits, one lit by an ember spark
+    dot(ctx, C - 4.4, C - 3.5, 3.1, COL.ink); dot(ctx, C + 4.4, C - 3.5, 3.1, COL.ink);
+    dot(ctx, C - 3.9, C - 3.1, 0.9, COL.red);
+    // nasal cavity + brow crack
+    ctx.fillStyle = COL.ink; poly(ctx, [[C, C + 0.6], [C - 1.8, C + 4.4], [C + 1.8, C + 4.4]], true);
+    pen(ctx, COL.boneD, 1); ctx.beginPath(); ctx.moveTo(C + 3, C - 12.5); ctx.lineTo(C + 5, C - 9.5); ctx.lineTo(C + 3.5, C - 7.5); ctx.stroke();
+    // cheek shading + dome shine
+    pen(ctx, 'rgba(138,122,86,.6)', 1); ctx.beginPath(); ctx.arc(C + 7.4, C + 1, 2.6, 2.5, 4.6); ctx.stroke();
+    glint(ctx, C - 5.5, C - 9.5, 1.2);
+  },
+  sun(ctx) {
+    // corona: alternating blood flares with hot mid-veins
+    for (let i = 0; i < 12; i++) {
+      const a = i / 12 * Math.PI * 2 - Math.PI / 2, long = i % 2 === 0, r2 = long ? 21.5 : 17.5;
+      ctx.fillStyle = long ? COL.blood : '#54121d';
+      poly(ctx, [[C + Math.cos(a - 0.14) * 13, C + Math.sin(a - 0.14) * 13], [C + Math.cos(a + 0.14) * 13, C + Math.sin(a + 0.14) * 13], [C + Math.cos(a) * r2, C + Math.sin(a) * r2]], true);
+      if (long) { pen(ctx, COL.red, 0.8); ln(ctx, C + Math.cos(a) * 14.5, C + Math.sin(a) * 14.5, C + Math.cos(a) * (r2 - 1), C + Math.sin(a) * (r2 - 1)); }
+    }
+    // the void disc, faintly domed
+    dot(ctx, C, C, 13.2, '#54121d');
+    ctx.fillStyle = lg(ctx, C - 9, C - 9, C + 9, C + 9, [[0, '#211318'], [1, '#000']]); cir(ctx, C, C, 12.2, true);
+    // dying-ember ring + occult notches
+    pen(ctx, 'rgba(212,71,79,.55)', 1); cir(ctx, C, C, 9.6);
+    pen(ctx, 'rgba(212,71,79,.75)', 1);
+    for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2 + 0.5; ln(ctx, C + Math.cos(a) * 8.2, C + Math.sin(a) * 8.2, C + Math.cos(a) * 10.6, C + Math.sin(a) * 10.6); }
+    // cold heart
+    dot(ctx, C, C, 2.1, COL.bloodD); dot(ctx, C, C, 1, COL.red);
+    glint(ctx, C - 4.5, C - 5, 0.7);
+  },
+  key(ctx) {
+    ctx.save(); ctx.translate(C, C); ctx.rotate(Math.PI / 4);
+    // stem: dark bronze under gold face, engraved collar
+    pen(ctx, COL.goldD, 3.8); ln(ctx, 0, -4, 0, 13.5);
+    pen(ctx, COL.gold, 1.9); ln(ctx, 0, -3.5, 0, 13);
+    pen(ctx, COL.goldL, 0.8); ln(ctx, -0.7, -3, -0.7, 12.5);
+    pen(ctx, COL.goldD, 1.2); ln(ctx, -2.3, 1.5, 2.3, 1.5); ln(ctx, -2.3, 3.2, 2.3, 3.2);
+    // wards: two stepped teeth with lit tops
+    pen(ctx, COL.goldD, 3.4); ln(ctx, 0, 13, 6, 13); ln(ctx, 0, 8.5, 4.2, 8.5);
+    pen(ctx, COL.goldL, 1.2); ln(ctx, 0.5, 12.3, 5.5, 12.3); ln(ctx, 0.5, 7.9, 3.8, 7.9);
+    // bow: pierced ring crowned with trefoil beads
+    pen(ctx, COL.goldD, 4.6); cir(ctx, 0, -9.5, 5);
+    pen(ctx, COL.gold, 2.2); cir(ctx, 0, -9.5, 5);
+    pen(ctx, COL.goldL, 1); ctx.beginPath(); ctx.arc(0, -9.5, 5, -2.9, -1); ctx.stroke();
+    for (const a of [-Math.PI / 2, Math.PI * 0.16, Math.PI * 0.84]) { dot(ctx, Math.cos(a) * 7.8, -9.5 + Math.sin(a) * 7.8, 1.6, COL.goldD); dot(ctx, Math.cos(a) * 7.8 - 0.2, -9.7 + Math.sin(a) * 7.8, 1.1, COL.gold); }
+    glint(ctx, -1.8, -11.6, 0.9);
+    ctx.restore();
+  },
+  eye(ctx) {
+    // sclera: aged ivory almond
+    ctx.fillStyle = lg(ctx, C - 8, C - 6, C + 8, C + 6, [[0, COL.boneL], [1, COL.boneD]]);
+    ctx.beginPath(); ctx.moveTo(C - 14, C); ctx.quadraticCurveTo(C, C - 13, C + 14, C); ctx.quadraticCurveTo(C, C + 13, C - 14, C); ctx.fill();
+    // iris: violet depth gradient, ink pupil, wet glint
+    const ir = ctx.createRadialGradient(C - 1, C - 1, 0.5, C, C, 5.6);
+    ir.addColorStop(0, '#a58bb5'); ir.addColorStop(0.7, COL.purple); ir.addColorStop(1, '#4a3956');
+    ctx.fillStyle = ir; cir(ctx, C, C, 5.6, true);
+    pen(ctx, '#4a3956', 1); cir(ctx, C, C, 5.6);
+    dot(ctx, C, C, 2.4, COL.ink);
+    glint(ctx, C - 2, C - 2.2, 1.1);
+    // lids: dark under-stroke + bone face
+    const lid = (q) => { const p = (col, w) => { pen(ctx, col, w); ctx.beginPath(); ctx.moveTo(C - 14, C); ctx.quadraticCurveTo(C, C + q, C + 14, C); ctx.stroke(); }; p('#5f5540', 3); p(COL.bone, 1.4); };
+    lid(-13); lid(13);
+    // lash ticks + weeping tear duct
+    pen(ctx, COL.boneD, 1); ln(ctx, C - 8, C - 8.6, C - 9.5, C - 10.6); ln(ctx, C, C - 9.7, C, C - 12); ln(ctx, C + 8, C - 8.6, C + 9.5, C - 10.6);
+    dot(ctx, C - 13.6, C + 1.5, 0.9, COL.blood);
+  },
+  ring(ctx) {
+    // band: dark cast under warm gold, inner reflection arc
+    pen(ctx, COL.goldD, 4.4); cir(ctx, C, C + 3.5, 8.6);
+    pen(ctx, COL.gold, 2.1); cir(ctx, C, C + 3.5, 8.6);
+    pen(ctx, COL.goldL, 0.9); ctx.beginPath(); ctx.arc(C, C + 3.5, 8.6, 2.1, 3.3); ctx.stroke();
+    pen(ctx, 'rgba(111,83,32,.9)', 0.8); ctx.beginPath(); ctx.arc(C, C + 3.5, 6.7, 0.6, 1.7); ctx.stroke();
+    // shoulders + claw prongs holding the stone
+    pen(ctx, COL.goldD, 2.4); ln(ctx, C - 4.8, C - 3.5, C - 3.4, C - 6.8); ln(ctx, C + 4.8, C - 3.5, C + 3.4, C - 6.8);
+    pen(ctx, COL.goldL, 1); ln(ctx, C - 4.4, C - 3.8, C - 3.2, C - 6.4); ln(ctx, C + 4.4, C - 3.8, C + 3.2, C - 6.4);
+    // cut stone: dark table, blood faces, girdle line
+    ctx.fillStyle = COL.bloodD; poly(ctx, [[C, C - 15.5], [C + 5.8, C - 9.5], [C, C - 3.5], [C - 5.8, C - 9.5]], true);
+    ctx.fillStyle = COL.blood; poly(ctx, [[C, C - 14.4], [C + 4.5, C - 9.5], [C, C - 4.6], [C - 4.5, C - 9.5]], true);
+    pen(ctx, COL.red, 0.9); ln(ctx, C - 4.5, C - 9.5, C + 4.5, C - 9.5);
+    glint(ctx, C - 1.6, C - 11.3, 1);
+    // starlight tick on the band
+    glint(ctx, C + 7.4, C + 9, 0.8);
+  },
+  coin(ctx) {
+    // second coin peeking from the stack
+    pen(ctx, COL.goldD, 1.6); ctx.beginPath(); ctx.arc(C + 3.5, C + 3.5, 11.5, -0.75, 1.85); ctx.stroke();
+    pen(ctx, 'rgba(226,189,102,.6)', 0.8); ctx.beginPath(); ctx.arc(C + 3.5, C + 3.5, 11.5, 0.1, 1.2); ctx.stroke();
+    // face: warm minted disc with milled rim
+    dot(ctx, C - 1.5, C - 1, 12.4, COL.goldD);
+    ctx.fillStyle = lg(ctx, C - 10, C - 10, C + 8, C + 9, [[0, COL.goldL], [0.5, COL.gold], [1, COL.goldD]]);
+    cir(ctx, C - 1.5, C - 1, 11.4, true);
+    pen(ctx, COL.goldD, 1); cir(ctx, C - 1.5, C - 1, 9);
+    for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2; ln(ctx, C - 1.5 + Math.cos(a) * 10, C - 1 + Math.sin(a) * 10, C - 1.5 + Math.cos(a) * 11.4, C - 1 + Math.sin(a) * 11.4); }
+    // embossed death's-head obverse
+    ctx.fillStyle = '#4a3510'; cir(ctx, C - 1.5, C - 2.7, 3.7, true); ctx.fillRect(C - 3.7, C - 0.7, 4.4, 2.8);
+    dot(ctx, C - 2.9, C - 3.2, 1, COL.gold); dot(ctx, C - 0.1, C - 3.2, 1, COL.gold);
+    // defacing gash: dead men's currency
+    pen(ctx, COL.bloodD, 2.6); ln(ctx, C - 10.5, C + 8, C + 7.5, C - 10);
+    pen(ctx, COL.red, 1.2); ln(ctx, C - 10, C + 7.5, C + 7, C - 9.5);
+    glint(ctx, C - 7.5, C - 7, 1.1);
+  },
+  cord(ctx) {
+    // silk cord winding: dark core + violet face + sheen
+    const path = (dx, dy) => { ctx.beginPath(); ctx.moveTo(C - 14 + dx, C - 11 + dy); ctx.bezierCurveTo(C + 10 + dx, C - 16 + dy, C - 12 + dx, C + 6 + dy, C + 4 + dx, C + 2.5 + dy); ctx.stroke(); };
+    pen(ctx, '#4a3956', 4); path(0, 0);
+    pen(ctx, COL.purple, 2); path(0, 0);
+    pen(ctx, 'rgba(238,235,221,.45)', 0.9); ctx.beginPath(); ctx.moveTo(C - 11.5, C - 11.6); ctx.quadraticCurveTo(C - 4, C - 13.3, C + 1.5, C - 12.4); ctx.stroke();
+    // frayed cut end
+    pen(ctx, '#4a3956', 1.2); ln(ctx, C - 14, C - 11, C - 16.5, C - 13); ln(ctx, C - 14, C - 11, C - 16.8, C - 9.8);
+    pen(ctx, COL.purple, 0.9); ln(ctx, C - 14, C - 11, C - 16.2, C - 11.8);
+    // gold binding wraps above the tassel
+    pen(ctx, COL.gold, 1.3); ln(ctx, C + 2.8, C + 0.4, C + 7, C + 2); ln(ctx, C + 2.2, C + 2.4, C + 6.4, C + 4);
+    // tassel head: lacquered bead + falling fringe
+    dot(ctx, C + 7.8, C + 6.5, 3.5, COL.bloodD); dot(ctx, C + 7.4, C + 6, 2.7, COL.blood);
+    glint(ctx, C + 6.3, C + 4.9, 0.8);
+    pen(ctx, COL.blood, 1.3); for (const d of [-2.4, 0, 2.4]) ln(ctx, C + 7.8 + d * 0.7, C + 9.2, C + 7 + d, C + 15);
+    pen(ctx, COL.red, 0.9); ln(ctx, C + 8.2, C + 9.2, C + 8.6, C + 14.2);
+  },
+  needle(ctx) {
+    // scarlet thread looping behind
+    const thread = (col, w) => { pen(ctx, col, w); ctx.beginPath(); ctx.moveTo(C + 11.5, C - 13); ctx.bezierCurveTo(C + 18, C - 4, C - 16, C - 8, C - 8, C + 2); ctx.bezierCurveTo(C - 3, C + 8, C - 15, C + 8, C - 13.5, C + 15); ctx.stroke(); };
+    thread(COL.bloodD, 2.2); thread(COL.red, 1);
+    // shaft: dark spine + polished steel face, tapering
+    pen(ctx, COL.steelD, 3.2); ln(ctx, C + 10, C - 10.5, C - 9, C + 8.5);
+    pen(ctx, COL.steel, 1.7); ln(ctx, C + 10, C - 10.5, C - 9, C + 8.5);
+    pen(ctx, COL.steelL, 0.8); ln(ctx, C + 9.3, C - 11, C - 5, C + 3.5);
+    // fine point
+    pen(ctx, COL.steelL, 1.4); ln(ctx, C - 9, C + 8.5, C - 12.8, C + 12.3);
+    // eye of the needle: forged loop
+    const eyeE = (col, w) => { pen(ctx, col, w); ctx.beginPath(); ctx.ellipse(C + 11.5, C - 12.2, 2.4, 3.4, -0.8, 0, Math.PI * 2); ctx.stroke(); };
+    eyeE(COL.steelD, 2.6); eyeE(COL.steelL, 1);
+    glint(ctx, C + 8.5, C - 9, 0.9);
+    dot(ctx, C - 13.5, C + 16, 1, COL.red);
+  },
+  ledger(ctx) {
+    // debt orbit passing behind the book
+    pen(ctx, COL.steelD, 2.4); ctx.beginPath(); ctx.ellipse(C, C + 1, 15.5, 6.5, 0.6, 0, Math.PI * 2); ctx.stroke();
+    // ledger: leather cover, bone page block
+    ctx.fillStyle = '#3a3226'; ctx.fillRect(C - 10.5, C - 12.5, 21, 25);
+    pen(ctx, '#584c38', 1); ctx.strokeRect(C - 10.5, C - 12.5, 21, 25);
+    ctx.fillStyle = lg(ctx, C - 9, C - 11, C + 9, C + 11, [[0, COL.boneL], [1, COL.bone]]); ctx.fillRect(C - 9, C - 11, 18, 22);
+    pen(ctx, COL.boneD, 1); ctx.strokeRect(C - 9, C - 11, 18, 22);
+    // entries, one struck through in red
+    pen(ctx, COL.dim, 1.1); ln(ctx, C - 6, C - 7, C + 6, C - 7); ln(ctx, C - 6, C - 3, C + 6, C - 3); ln(ctx, C - 6, C + 1, C + 3, C + 1);
+    pen(ctx, COL.red, 1.2); ln(ctx, C - 7, C - 2.6, C + 7, C - 3.4);
+    // the sum owed: double-ruled in blood
+    pen(ctx, COL.blood, 1); ln(ctx, C - 6, C + 6, C + 6, C + 6); ln(ctx, C - 6, C + 7.8, C + 6, C + 7.8);
+    // orbit sweeping across the front, moonlit
+    pen(ctx, COL.steel, 2); ctx.beginPath(); ctx.ellipse(C, C + 1, 15.5, 6.5, 0.6, -0.6, 2.2); ctx.stroke();
+    pen(ctx, COL.steelL, 0.9); ctx.beginPath(); ctx.ellipse(C, C + 1, 15.5, 6.5, 0.6, 0.2, 1.6); ctx.stroke();
+    // gilded corner cap
+    pen(ctx, COL.gold, 1.2); ln(ctx, C - 9, C - 8, C - 9, C - 11); ln(ctx, C - 9, C - 11, C - 6, C - 11);
+    glint(ctx, C - 6.5, C - 9.5, 0.8);
+  },
+  hourglass(ctx) {
+    // turned wood posts
+    pen(ctx, COL.woodD, 2.6); ln(ctx, C - 10, C - 12, C - 10, C + 12); ln(ctx, C + 10, C - 12, C + 10, C + 12);
+    pen(ctx, COL.wood, 1.1); ln(ctx, C - 9.6, C - 11.5, C - 9.6, C + 11.5); ln(ctx, C + 10.4, C - 11.5, C + 10.4, C + 11.5);
+    // glass bulbs: cold night tint
+    const bulb = (f) => { ctx.beginPath(); ctx.moveTo(C - 7.5, C + -12 * f); ctx.lineTo(C + 7.5, C + -12 * f); ctx.quadraticCurveTo(C + 6.5, C + -4 * f, C + 1, C + -0.8 * f); ctx.lineTo(C - 1, C + -0.8 * f); ctx.quadraticCurveTo(C - 6.5, C + -4 * f, C - 7.5, C + -12 * f); ctx.closePath(); };
+    ctx.fillStyle = 'rgba(70,96,138,.28)'; bulb(1); ctx.fill(); bulb(-1); ctx.fill();
+    // sand: remainder above, thread, spent pile below
+    ctx.fillStyle = COL.boneD; poly(ctx, [[C - 4.5, C - 8.5], [C + 4.5, C - 8.5], [C + 0.9, C - 1.6], [C - 0.9, C - 1.6]], true);
+    ctx.fillStyle = COL.bone; poly(ctx, [[C - 3.8, C - 8.5], [C + 3.2, C - 8.5], [C + 0.5, C - 2.2], [C - 0.7, C - 2.2]], true);
+    ctx.fillStyle = COL.boneD; poly(ctx, [[C - 5.5, C + 11], [C + 5.5, C + 11], [C, C + 5]], true);
+    ctx.fillStyle = COL.bone; poly(ctx, [[C - 4, C + 11], [C + 3, C + 11], [C - 0.5, C + 6.5]], true);
+    pen(ctx, COL.boneL, 1); ln(ctx, C, C - 1.8, C, C + 9);
+    // glass outline + slanted window light
+    pen(ctx, 'rgba(154,161,168,.8)', 1.1); bulb(1); ctx.stroke(); bulb(-1); ctx.stroke();
+    pen(ctx, 'rgba(238,235,221,.5)', 1); ln(ctx, C - 5.3, C - 10.5, C - 3.2, C - 5.5); ln(ctx, C - 5.3, C + 10.5, C - 3.2, C + 5.5);
+    // brass caps top and bottom
+    for (const y of [C - 15, C + 12]) { ctx.fillStyle = COL.goldD; ctx.fillRect(C - 11.5, y, 23, 3); pen(ctx, COL.goldL, 1); ln(ctx, C - 10.8, y + 0.9, C + 10.8, y + 0.9); }
+    glint(ctx, C - 8, C - 13.4, 0.7);
+  },
+  mask(ctx) {
+    // ribbon ties streaming behind
+    pen(ctx, COL.blood, 1.4);
+    ctx.beginPath(); ctx.moveTo(C - 8.5, C - 3); ctx.quadraticCurveTo(C - 14, C - 5, C - 15.5, C - 10.5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(C + 8.5, C - 3); ctx.quadraticCurveTo(C + 14, C - 5, C + 15.5, C - 10.5); ctx.stroke();
+    // porcelain oval: cold shadow under a lit face
+    ctx.fillStyle = '#8f8570'; ctx.beginPath(); ctx.ellipse(C + 0.6, C + 0.8, 9.6, 12.6, 0.05, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = lg(ctx, C - 7, C - 10, C + 7, C + 10, [[0, '#fdfbf2'], [0.55, COL.white], [1, '#c9c2ae']]);
+    ctx.beginPath(); ctx.ellipse(C, C, 9.4, 12.4, 0, 0, Math.PI * 2); ctx.fill();
+    pen(ctx, '#a89f8a', 1); ctx.beginPath(); ctx.ellipse(C, C, 9.4, 12.4, 0, 0, Math.PI * 2); ctx.stroke();
+    // gilt brow trim
+    pen(ctx, COL.gold, 1.2); ctx.beginPath(); ctx.ellipse(C, C, 9.4, 12.4, 0, -2.6, -0.5); ctx.stroke();
+    // hollow eyes, the right one weeping gold
+    ctx.fillStyle = COL.ink;
+    ctx.beginPath(); ctx.ellipse(C - 4, C - 3.5, 2.1, 3, 0.15, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(C + 4, C - 3.5, 2.1, 3, -0.15, 0, Math.PI * 2); ctx.fill();
+    pen(ctx, COL.gold, 1.1); ln(ctx, C + 4.6, C - 0.5, C + 5.4, C + 4.5); dot(ctx, C + 5.6, C + 5.8, 1, COL.gold);
+    // serene mouth + hairline crack
+    pen(ctx, COL.ink, 1.4); ctx.beginPath(); ctx.arc(C, C + 4.5, 3.6, 0.35, Math.PI - 0.35); ctx.stroke();
+    pen(ctx, '#a89f8a', 0.9); ctx.beginPath(); ctx.moveTo(C - 6.5, C + 11.5); ctx.lineTo(C - 4.5, C + 7.5); ctx.lineTo(C - 5.8, C + 4.5); ctx.stroke();
+    glint(ctx, C - 3.5, C - 8.5, 1.2);
+  },
+  feather(ctx) {
+    // vane: shadowed base + moonlit face
+    const vane = () => { ctx.beginPath(); ctx.moveTo(C - 11, C + 14); ctx.quadraticCurveTo(C - 6, C - 12, C + 10, C - 14.5); ctx.quadraticCurveTo(C + 10.5, C - 2, C - 11, C + 14); ctx.closePath(); };
+    vane(); ctx.fillStyle = '#8f8570'; ctx.fill();
+    ctx.save(); ctx.translate(-0.7, -0.7); vane(); ctx.fillStyle = lg(ctx, C - 8, C + 8, C + 8, C - 10, [[0, '#c9c2ae'], [0.5, COL.white], [1, '#fdfbf2']]); ctx.fill(); ctx.restore();
+    // rachis: dark shaft down the middle
+    pen(ctx, COL.boneD, 1.7); ctx.beginPath(); ctx.moveTo(C - 11, C + 14); ctx.quadraticCurveTo(C - 1, C - 1, C + 9, C - 13.5); ctx.stroke();
+    // barb splits
+    pen(ctx, 'rgba(143,133,112,.75)', 1); ln(ctx, C - 4, C + 4.5, C - 8.5, C + 2.5); ln(ctx, C + 0.5, C - 1.5, C - 3.5, C - 4.5); ln(ctx, C + 4.5, C - 6.5, C + 1, C - 9.5);
+    // ember-dipped tip, still warm
+    pen(ctx, COL.orange, 1.8); ctx.beginPath(); ctx.moveTo(C + 5.5, C - 9.5); ctx.quadraticCurveTo(C + 8, C - 12, C + 10, C - 14.5); ctx.stroke();
+    pen(ctx, COL.ember, 0.9); ctx.beginPath(); ctx.moveTo(C + 6.5, C - 10.5); ctx.quadraticCurveTo(C + 8.5, C - 12.5, C + 10, C - 14.5); ctx.stroke();
+    dot(ctx, C + 12.5, C - 15, 0.7, COL.ember);
+    // gilded quill nib at the base
+    pen(ctx, COL.goldD, 2.4); ln(ctx, C - 11, C + 14, C - 14, C + 17);
+    pen(ctx, COL.goldL, 1); ln(ctx, C - 11.4, C + 13.8, C - 13.6, C + 16);
+    glint(ctx, C - 2, C + 1.5, 0.9);
+  },
+  invite(ctx) {
+    // aged parchment envelope
+    ctx.fillStyle = COL.boneD; ctx.fillRect(C - 13, C - 9.5, 26, 19);
+    ctx.fillStyle = lg(ctx, C - 11, C - 8, C + 11, C + 8, [[0, COL.boneL], [1, COL.bone]]); ctx.fillRect(C - 12, C - 8.5, 24, 17);
+    pen(ctx, COL.boneD, 1.1); ctx.strokeRect(C - 12, C - 8.5, 24, 17);
+    // flap folds with a lit crease
+    pen(ctx, COL.boneD, 1.2); ln(ctx, C - 12, C - 8.5, C, C + 1.5); ln(ctx, C + 12, C - 8.5, C, C + 1.5);
+    pen(ctx, 'rgba(238,224,189,.85)', 0.8); ln(ctx, C - 11, C - 8, C - 0.5, C + 0.6);
+    // gilt deckle edge
+    pen(ctx, COL.gold, 1); ln(ctx, C - 12, C + 8.5, C + 12, C + 8.5);
+    // ribbon tails slipping out beneath the seal
+    pen(ctx, COL.blood, 1.5); ln(ctx, C - 2, C + 6, C - 4.5, C + 12.5); ln(ctx, C + 2, C + 6, C + 4.5, C + 12.5);
+    pen(ctx, COL.red, 0.9); ln(ctx, C - 2.2, C + 6.5, C - 4.2, C + 11.5);
+    // black wax seal, red sigil pressed in
+    dot(ctx, C, C + 2.5, 4.5, COL.ink); dot(ctx, C - 0.2, C + 2.2, 3.7, '#1b171c');
+    pen(ctx, COL.red, 1); cir(ctx, C - 0.2, C + 2.2, 1.9);
+    dot(ctx, C - 0.2, C + 2.2, 0.7, COL.red);
+    glint(ctx, C - 1.9, C + 0.5, 0.7);
+    glint(ctx, C - 9.5, C - 6.5, 0.8);
+  },
+  seedface(ctx) {
+    // iron seed: cold ovoid with a welded seam
+    ctx.fillStyle = COL.steelD; ctx.beginPath(); ctx.ellipse(C, C + 1.5, 9.4, 12.2, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = lg(ctx, C - 7, C - 8, C + 7, C + 12, [[0, COL.steelL], [0.5, COL.steel], [1, COL.steelD]]);
+    ctx.beginPath(); ctx.ellipse(C - 0.3, C + 1.2, 8.6, 11.4, 0, 0, Math.PI * 2); ctx.fill();
+    pen(ctx, COL.steelD, 1); ctx.beginPath(); ctx.ellipse(C, C + 1.5, 9.4, 12.2, 0, 0, Math.PI * 2); ctx.stroke();
+    // riveted seam across the belly
+    pen(ctx, COL.steelD, 1); ctx.beginPath(); ctx.moveTo(C - 8.5, C + 4.5); ctx.quadraticCurveTo(C, C + 7, C + 8.5, C + 4.5); ctx.stroke();
+    for (const dx of [-5, 0, 5]) dot(ctx, C + dx, C + 5.4 + (dx ? -0.3 : 0.7), 0.7, COL.steelD);
+    // sleeping face: closed eyes, faint dreaming mouth
+    pen(ctx, COL.ink, 1.6);
+    ctx.beginPath(); ctx.arc(C - 3.6, C - 2.5, 1.9, 0.3, Math.PI - 0.5); ctx.stroke();
+    ctx.beginPath(); ctx.arc(C + 3.6, C - 2.5, 1.9, 0.5, Math.PI - 0.3); ctx.stroke();
+    pen(ctx, COL.ink, 1.2); ctx.beginPath(); ctx.arc(C, C + 1.6, 2.6, 0.5, Math.PI - 0.5); ctx.stroke();
+    // living sprout splitting the crown
+    pen(ctx, '#3d4a37', 2.4); ctx.beginPath(); ctx.moveTo(C + 0.5, C - 10.5); ctx.quadraticCurveTo(C - 1.5, C - 14.5, C - 5.5, C - 16); ctx.stroke();
+    pen(ctx, COL.green, 1.2); ctx.beginPath(); ctx.moveTo(C + 0.5, C - 10.5); ctx.quadraticCurveTo(C - 1.2, C - 14, C - 5, C - 15.5); ctx.stroke();
+    ctx.fillStyle = COL.green; ctx.beginPath(); ctx.moveTo(C - 5, C - 15.5); ctx.quadraticCurveTo(C - 9, C - 17, C - 10.5, C - 14); ctx.quadraticCurveTo(C - 7, C - 12.5, C - 5, C - 15.5); ctx.fill();
+    // crack where it broke through
+    pen(ctx, COL.steelD, 0.9); ln(ctx, C + 0.5, C - 10.5, C + 2.5, C - 8);
+    glint(ctx, C - 3.5, C - 6, 1.1);
+  },
+  bottle(ctx) {
+    // cork stopper
+    ctx.fillStyle = COL.wood; ctx.fillRect(C - 2.7, C - 15.5, 5.4, 4.2);
+    pen(ctx, COL.woodD, 1); ctx.strokeRect(C - 2.7, C - 15.5, 5.4, 4.2);
+    pen(ctx, 'rgba(226,189,102,.5)', 0.8); ln(ctx, C - 1.8, C - 14.8, C - 1.8, C - 12);
+    // shouldered glass body
+    const body = () => { ctx.beginPath(); ctx.moveTo(C - 3, C - 11.5); ctx.lineTo(C + 3, C - 11.5); ctx.lineTo(C + 3, C - 6.5); ctx.quadraticCurveTo(C + 8, C - 5, C + 8, C + 0.5); ctx.lineTo(C + 8, C + 12); ctx.quadraticCurveTo(C + 8, C + 14, C + 6, C + 14); ctx.lineTo(C - 6, C + 14); ctx.quadraticCurveTo(C - 8, C + 14, C - 8, C + 12); ctx.lineTo(C - 8, C + 0.5); ctx.quadraticCurveTo(C - 8, C - 5, C - 3, C - 6.5); ctx.closePath(); };
+    ctx.fillStyle = 'rgba(70,96,138,.3)'; body(); ctx.fill();
+    // tonic: bright draught over red dregs, meniscus shine
+    ctx.save(); body(); ctx.clip();
+    ctx.fillStyle = COL.bloodD; ctx.fillRect(C - 8, C + 9, 16, 6);
+    ctx.fillStyle = lg(ctx, C, C + 1, C, C + 9, [[0, COL.ember], [1, COL.orange]]); ctx.fillRect(C - 8, C + 1, 16, 8);
+    pen(ctx, 'rgba(246,231,187,.85)', 1); ln(ctx, C - 7.5, C + 1.5, C + 7.5, C + 1.5);
+    pen(ctx, 'rgba(246,231,187,.6)', 0.8); cir(ctx, C + 3.5, C + 5.5, 1); cir(ctx, C - 2, C + 7.5, 0.7);
+    ctx.restore();
+    // glass line + standing highlight + neck cord
+    pen(ctx, COL.bone, 1.3); body(); ctx.stroke();
+    pen(ctx, 'rgba(238,235,221,.6)', 1.4); ln(ctx, C - 5.5, C - 3.5, C - 5.5, C + 11);
+    pen(ctx, COL.gold, 1); ln(ctx, C - 3.4, C - 10, C + 3.4, C - 10);
+    glint(ctx, C - 0.8, C - 14.6, 0.6);
+  },
+  dice(ctx) {
+    // carved bone die in isometric: three faces, three tones
+    const top = [[C, C - 14], [C + 11, C - 8], [C, C - 2], [C - 11, C - 8]];
+    const left = [[C - 11, C - 8], [C, C - 2], [C, C + 12], [C - 11, C + 6]];
+    const right = [[C + 11, C - 8], [C, C - 2], [C, C + 12], [C + 11, C + 6]];
+    ctx.fillStyle = COL.boneL; poly(ctx, top, true);
+    ctx.fillStyle = COL.bone; poly(ctx, left, true);
+    ctx.fillStyle = COL.boneD; poly(ctx, right, true);
+    pen(ctx, '#5f5540', 1.1); poly(ctx, top); poly(ctx, left); poly(ctx, right);
+    // pips: the ace inlaid in blood, flanks drilled dark
+    dot(ctx, C, C - 8.3, 1.9, COL.bloodD); dot(ctx, C - 0.2, C - 8.5, 1.5, COL.blood); glint(ctx, C - 0.7, C - 9, 0.5);
+    dot(ctx, C - 5.5, C - 0.5, 1.3, '#5f5540'); dot(ctx, C - 5.5, C + 6.5, 1.3, '#5f5540');
+    dot(ctx, C + 5.5, C - 1, 1.3, '#4a4234'); dot(ctx, C + 3, C + 4, 1.3, '#4a4234'); dot(ctx, C + 8, C + 1.5, 1.3, '#4a4234');
+    // worn corner nick + table shadow
+    pen(ctx, '#5f5540', 1); ln(ctx, C - 10.2, C - 9.4, C - 8.6, C - 7.2);
+    pen(ctx, 'rgba(11,10,12,.5)', 2); ln(ctx, C - 8, C + 13.8, C + 8, C + 13.8);
+    glint(ctx, C - 4, C - 11.5, 0.9);
+  },
+  statue(ctx) {
+    // stone plinth: two weathered steps
+    ctx.fillStyle = '#3f3b49'; ctx.fillRect(C - 7.5, C + 7.5, 15, 3.5);
+    ctx.fillStyle = '#4a4550'; ctx.fillRect(C - 10.5, C + 11, 21, 4);
+    pen(ctx, 'rgba(238,235,221,.3)', 1); ln(ctx, C - 10, C + 11.4, C + 10, C + 11.4);
+    // robed idol: granite gradient with a lit shoulder
+    const robe = () => { ctx.beginPath(); ctx.moveTo(C - 8, C + 7.5); ctx.lineTo(C - 6.2, C - 5); ctx.quadraticCurveTo(C - 6.4, C - 12, C, C - 14); ctx.quadraticCurveTo(C + 6.4, C - 12, C + 6.2, C - 5); ctx.lineTo(C + 8, C + 7.5); ctx.closePath(); };
+    robe(); ctx.fillStyle = lg(ctx, C - 6, C - 11, C + 7, C + 8, [[0, '#8a8496'], [0.45, '#5c5766'], [1, '#3f3b49']]); ctx.fill();
+    pen(ctx, '#211e28', 1.1); robe(); ctx.stroke();
+    // hood hollow with twin ember eyes
+    ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.ellipse(C, C - 8.5, 3.6, 4.4, 0, 0, Math.PI * 2); ctx.fill();
+    dot(ctx, C - 1.5, C - 8.8, 0.7, COL.ember); dot(ctx, C + 1.5, C - 8.8, 0.7, COL.ember);
+    // drapery folds + creeping moss stain
+    pen(ctx, '#332f3b', 1.1); ln(ctx, C - 3, C - 2.5, C - 4.2, C + 7); ln(ctx, C + 3, C - 2.5, C + 4.2, C + 7);
+    pen(ctx, 'rgba(117,135,107,.65)', 1.4); ctx.beginPath(); ctx.moveTo(C + 5.8, C + 1); ctx.quadraticCurveTo(C + 7, C + 4.5, C + 6.3, C + 7.5); ctx.stroke();
+    pen(ctx, 'rgba(117,135,107,.45)', 1); ln(ctx, C - 9.5, C + 12.5, C - 6.5, C + 12.5);
+    // moonlit edge down the left of the hood
+    pen(ctx, 'rgba(238,235,221,.5)', 1.2); ctx.beginPath(); ctx.moveTo(C - 5.2, C - 11.5); ctx.quadraticCurveTo(C - 6.6, C - 6, C - 5.9, C - 1); ctx.stroke();
+    glint(ctx, C - 1.5, C - 13, 0.9);
+  },
+  salt(ctx) {
+    // burlap sack: warm weave over a shadowed base
+    const sack = () => { ctx.beginPath(); ctx.moveTo(C - 3.5, C - 8); ctx.quadraticCurveTo(C - 10.5, C - 4.5, C - 10.5, C + 5); ctx.quadraticCurveTo(C - 10.5, C + 13, C, C + 13); ctx.quadraticCurveTo(C + 10.5, C + 13, C + 10.5, C + 5); ctx.quadraticCurveTo(C + 10.5, C - 4.5, C + 3.5, C - 8); ctx.closePath(); };
+    sack(); ctx.fillStyle = lg(ctx, C - 8, C - 6, C + 8, C + 12, [[0, COL.bone], [0.5, '#b3a37f'], [1, COL.boneD]]); ctx.fill();
+    pen(ctx, '#5f5540', 1.2); sack(); ctx.stroke();
+    // coarse weave lines
+    pen(ctx, 'rgba(95,85,64,.5)', 0.8); ln(ctx, C - 7.5, C - 0.5, C + 7.5, C + 1); ln(ctx, C - 8, C + 4.5, C + 8, C + 6); ln(ctx, C - 2, C - 5, C - 4, C + 11.5);
+    // gathered neck bound with red cord
+    pen(ctx, '#5f5540', 2.8); ln(ctx, C - 4.2, C - 8.5, C + 4.2, C - 8.5);
+    pen(ctx, COL.blood, 1.3); ln(ctx, C - 4.6, C - 7.5, C + 4.6, C - 7.5);
+    // tipped mouth spilling crystals
+    ctx.fillStyle = COL.boneL; ctx.beginPath(); ctx.ellipse(C + 1, C - 10.8, 3.8, 2, 0.35, 0, Math.PI * 2); ctx.fill();
+    pen(ctx, '#5f5540', 1); ctx.beginPath(); ctx.ellipse(C + 1, C - 10.8, 3.8, 2, 0.35, 0, Math.PI * 2); ctx.stroke();
+    // salt arcing out, each grain catching light
+    for (const [x, y, r] of [[C + 6.5, C - 13.5, 1], [C + 10, C - 11, 0.9], [C + 12, C - 7, 0.9], [C + 13, C - 2.5, 0.8], [C + 13.5, C + 2, 0.7]]) { dot(ctx, x, y, r, COL.boneL); glint(ctx, x - 0.4, y - 0.5, 0.4); }
+    // ward line it was poured for
+    pen(ctx, 'rgba(238,224,189,.6)', 1.4); ln(ctx, C + 9, C + 14.5, C + 16, C + 14.5);
+    glint(ctx, C - 6, C - 3.5, 1);
+  },
+  mercyknife(ctx) {
+    // misericorde: slender blade, point down, moon-pale
+    const B = [[C, C + 15.5], [C + 2.4, C + 8], [C + 2, C - 4], [C - 2, C - 4], [C - 2.4, C + 8]];
+    ctx.fillStyle = lg(ctx, C - 2.4, C, C + 2.4, C, [[0, COL.steelL], [0.5, COL.steel], [1, COL.steelD]]);
+    poly(ctx, B, true);
+    pen(ctx, COL.steelD, 0.9); poly(ctx, B);
+    pen(ctx, COL.white, 0.9); ln(ctx, C - 0.3, C - 3, C - 0.1, C + 13.5);
+    // a single tear of blood at the point
+    dot(ctx, C + 0.2, C + 17.2, 1.1, COL.red); glint(ctx, C - 0.1, C + 16.9, 0.35);
+    // slim silver cross-guard
+    pen(ctx, COL.steelD, 2.8); ln(ctx, C - 7.5, C - 5.2, C + 7.5, C - 5.2);
+    pen(ctx, COL.steelL, 1.1); ln(ctx, C - 7, C - 5.7, C + 7, C - 5.7);
+    dot(ctx, C - 8, C - 5.4, 1, COL.steelD); dot(ctx, C + 8, C - 5.4, 1, COL.steelD);
+    // cord-wrapped grip with gold rings
+    pen(ctx, COL.woodD, 3.4); ln(ctx, C, C - 6.5, C, C - 13);
+    pen(ctx, COL.wood, 1.7); ln(ctx, C, C - 7, C, C - 12.5);
+    pen(ctx, COL.gold, 1); ln(ctx, C - 1.7, C - 8.4, C + 1.7, C - 9.2); ln(ctx, C - 1.7, C - 10.4, C + 1.7, C - 11.2);
+    // pale moonstone pommel
+    dot(ctx, C, C - 14.9, 2.1, COL.steelD); dot(ctx, C - 0.3, C - 15.1, 1.4, COL.white);
+    glint(ctx, C - 1.1, C + 2, 0.8);
+  },
+  crownempty(ctx) {
+    // faded funeral cushion
+    ctx.fillStyle = '#3a2430'; ctx.beginPath(); ctx.ellipse(C, C + 11.5, 12.5, 3.4, 0, 0, Math.PI * 2); ctx.fill();
+    pen(ctx, '#54121d', 1); ctx.beginPath(); ctx.ellipse(C, C + 11.5, 12.5, 3.4, 0, 0, Math.PI * 2); ctx.stroke();
+    pen(ctx, 'rgba(212,71,79,.4)', 0.8); ctx.beginPath(); ctx.ellipse(C, C + 11, 9.5, 2, 0, Math.PI, Math.PI * 2); ctx.stroke();
+    // circlet: warm gold over dark cast
+    const band = () => { ctx.beginPath(); ctx.moveTo(C - 11, C + 8.5); ctx.lineTo(C - 11, C - 3); ctx.lineTo(C - 5.5, C + 1.5); ctx.lineTo(C, C - 8.5); ctx.lineTo(C + 5.5, C + 1.5); ctx.lineTo(C + 11, C - 3); ctx.lineTo(C + 11, C + 8.5); ctx.closePath(); };
+    band(); ctx.fillStyle = lg(ctx, C - 9, C - 4, C + 9, C + 9, [[0, COL.goldL], [0.5, COL.gold], [1, COL.goldD]]); ctx.fill();
+    pen(ctx, COL.goldD, 1.2); band(); ctx.stroke();
+    // engraved base band
+    pen(ctx, COL.goldD, 1); ln(ctx, C - 10.5, C + 5.2, C + 10.5, C + 5.2);
+    pen(ctx, COL.goldL, 0.8); ln(ctx, C - 10.5, C + 6.4, C + 10.5, C + 6.4);
+    // pried-out sockets where the jewels sat
+    for (const [x, y] of [[C - 7, C + 2.2], [C, C + 0.8], [C + 7, C + 2.2]]) { dot(ctx, x, y, 1.7, COL.ink); pen(ctx, '#4a3510', 0.8); cir(ctx, x, y, 2.1); }
+    // tarnished finial beads
+    dot(ctx, C - 11, C - 4, 1.2, COL.goldD); dot(ctx, C, C - 9.6, 1.3, COL.goldD); dot(ctx, C + 11, C - 4, 1.2, COL.goldD);
+    dot(ctx, C - 0.2, C - 9.8, 0.7, COL.gold);
+    // one lost pearl rolling away
+    dot(ctx, C + 14, C + 13.5, 1.4, COL.boneD); glint(ctx, C + 13.5, C + 13, 0.5);
+    glint(ctx, C - 7.5, C - 1, 1);
+  },
+  tooth(ctx) {
+    // molar: dark base under an enamel gradient, twin roots
+    const shape = (s, dy) => { ctx.beginPath(); ctx.moveTo(C - 8 * s, C - 6 * s + dy); ctx.quadraticCurveTo(C - 8.5 * s, C - 14 * s + dy, C, C - 13.5 * s + dy); ctx.quadraticCurveTo(C + 8.5 * s, C - 14 * s + dy, C + 8 * s, C - 6 * s + dy); ctx.quadraticCurveTo(C + 9 * s, C + 2 * s + dy, C + 5.5 * s, C + 12 * s + dy); ctx.quadraticCurveTo(C + 4 * s, C + 14.5 * s + dy, C + 3 * s, C + 11.5 * s + dy); ctx.lineTo(C + 1.5 * s, C + 5 * s + dy); ctx.quadraticCurveTo(C, C + 3 * s + dy, C - 1.5 * s, C + 5 * s + dy); ctx.lineTo(C - 3 * s, C + 11.5 * s + dy); ctx.quadraticCurveTo(C - 4 * s, C + 14.5 * s + dy, C - 5.5 * s, C + 12 * s + dy); ctx.quadraticCurveTo(C - 9 * s, C + 2 * s + dy, C - 8 * s, C - 6 * s + dy); ctx.closePath(); };
+    shape(1.1, 0.5); ctx.fillStyle = '#5f5540'; ctx.fill();
+    shape(1, 0); ctx.fillStyle = lg(ctx, C - 7, C - 12, C + 7, C + 10, [[0, '#fdfbf2'], [0.45, COL.boneL], [1, COL.boneD]]); ctx.fill();
+    // crown crease + root shadows
+    pen(ctx, COL.boneD, 1); ctx.beginPath(); ctx.moveTo(C - 5, C - 9.5); ctx.quadraticCurveTo(C, C - 7.5, C + 5, C - 9.5); ctx.stroke();
+    pen(ctx, 'rgba(95,85,64,.6)', 1); ln(ctx, C - 4, C + 6, C - 4.8, C + 11); ln(ctx, C + 4, C + 6, C + 4.8, C + 11);
+    // dried blood at one root, gold filling in the crown
+    dot(ctx, C + 4.4, C + 13.2, 1.2, COL.blood);
+    dot(ctx, C + 3.5, C - 11, 1.2, COL.gold); glint(ctx, C + 3.1, C - 11.4, 0.4);
+    glint(ctx, C - 4.5, C - 10.5, 1.2);
+  },
+  nail(ctx) {
+    ctx.save(); ctx.translate(C, C); ctx.rotate(Math.PI / 5);
+    // hand-forged shank: dark flat + cold steel face
+    pen(ctx, COL.steelD, 4); ln(ctx, 0, -10, 0, 8);
+    pen(ctx, COL.steel, 2); ln(ctx, 0, -10, 0, 8);
+    pen(ctx, COL.steelL, 0.9); ln(ctx, -0.8, -9.5, -0.8, 6);
+    // taper to the point
+    ctx.fillStyle = COL.steelD; poly(ctx, [[-2, 7.5], [2, 7.5], [0, 15]], true);
+    ctx.fillStyle = COL.steel; poly(ctx, [[-1.2, 7.5], [1.4, 7.5], [0.2, 13.6]], true);
+    // hammered head, peened edge
+    ctx.fillStyle = COL.steelD; ctx.fillRect(-5.5, -13.5, 11, 3.6);
+    ctx.fillStyle = lg(ctx, -5, -13, 5, -10, [[0, COL.steelL], [1, COL.steelD]]); ctx.fillRect(-4.8, -13, 9.6, 2.6);
+    pen(ctx, COL.steelD, 0.8); ln(ctx, -5.5, -9.9, 5.5, -9.9);
+    // rust bloom creeping down + blood at the point
+    pen(ctx, 'rgba(201,107,47,.65)', 1.4); ln(ctx, 1.2, -8.5, 1.2, -3.5);
+    pen(ctx, 'rgba(201,107,47,.4)', 1); ln(ctx, -1.6, -6, -1.6, -2.5);
+    dot(ctx, 0, 15.8, 1.1, COL.red);
+    glint(ctx, -3.2, -12.2, 0.8);
+    ctx.restore();
+  },
+  candleblack(ctx) {
+    // flame halo
+    const rg = ctx.createRadialGradient(C, C - 9.5, 0.5, C, C - 9.5, 8.5);
+    rg.addColorStop(0, 'rgba(240,168,90,.5)'); rg.addColorStop(1, 'rgba(240,168,90,0)');
+    ctx.fillStyle = rg; cir(ctx, C, C - 9.5, 8.5, true);
+    // black wax column
+    ctx.fillStyle = '#0f0d11'; ctx.fillRect(C - 5, C - 4.5, 10, 17);
+    ctx.fillStyle = lg(ctx, C - 4, C, C + 5, C, [[0, '#3f3b49'], [0.4, '#1b171c'], [1, '#0f0d11']]); ctx.fillRect(C - 4.4, C - 4.5, 8.8, 17);
+    pen(ctx, '#3f3b49', 1); ctx.strokeRect(C - 5, C - 4.5, 10, 17);
+    // molten lip + wax runs
+    pen(ctx, '#3f3b49', 1.6); ctx.beginPath(); ctx.moveTo(C - 5, C - 4.5); ctx.quadraticCurveTo(C - 2, C - 2.5, C + 1, C - 4.5); ctx.quadraticCurveTo(C + 3, C - 3, C + 5, C - 4.5); ctx.stroke();
+    pen(ctx, '#2c2833', 1.4); ln(ctx, C - 3, C - 3.5, C - 3, C + 3.5); ln(ctx, C + 3.4, C - 3.5, C + 3.4, C + 0.5);
+    // witch-light edge on the wax
+    pen(ctx, 'rgba(124,95,138,.55)', 1); ln(ctx, C - 4.6, C - 3.5, C - 4.6, C + 11);
+    // wick + flame: ember teardrop with a pale heart
+    pen(ctx, COL.ink, 1.2); ln(ctx, C, C - 4.5, C, C - 6.5);
+    ctx.fillStyle = COL.ember; ctx.beginPath(); ctx.moveTo(C, C - 15); ctx.quadraticCurveTo(C + 3.4, C - 9.5, C, C - 5.5); ctx.quadraticCurveTo(C - 3.4, C - 9.5, C, C - 15); ctx.fill();
+    ctx.fillStyle = COL.flameCore; ctx.beginPath(); ctx.ellipse(C, C - 8.4, 1.3, 2.4, 0, 0, Math.PI * 2); ctx.fill();
+    // iron drip pan
+    ctx.fillStyle = COL.steelD; ctx.beginPath(); ctx.ellipse(C, C + 13.5, 8.5, 2.4, 0, 0, Math.PI * 2); ctx.fill();
+    pen(ctx, COL.steelL, 0.9); ctx.beginPath(); ctx.ellipse(C, C + 13, 6.8, 1.4, 0, Math.PI, Math.PI * 2); ctx.stroke();
+  },
+  vial(ctx) {
+    // round-bottom flask
+    const flask = () => { ctx.beginPath(); ctx.moveTo(C - 3, C - 13); ctx.lineTo(C - 3, C - 3.5); ctx.quadraticCurveTo(C - 9.5, C - 0.5, C - 9.5, C + 6); ctx.quadraticCurveTo(C - 9.5, C + 13.5, C, C + 13.5); ctx.quadraticCurveTo(C + 9.5, C + 13.5, C + 9.5, C + 6); ctx.quadraticCurveTo(C + 9.5, C - 0.5, C + 3, C - 3.5); ctx.lineTo(C + 3, C - 13); ctx.closePath(); };
+    ctx.fillStyle = 'rgba(70,96,138,.25)'; flask(); ctx.fill();
+    // the draught: dark depths, swirling surface, slow bubbles
+    ctx.save(); flask(); ctx.clip();
+    ctx.fillStyle = COL.bloodD; ctx.fillRect(C - 10, C + 2.5, 20, 12);
+    ctx.fillStyle = COL.blood; ctx.beginPath(); ctx.moveTo(C - 10, C + 4.5); ctx.quadraticCurveTo(C - 3, C + 2, C + 3, C + 4.5); ctx.quadraticCurveTo(C + 7, C + 6.2, C + 10, C + 4.5); ctx.lineTo(C + 10, C + 14); ctx.lineTo(C - 10, C + 14); ctx.closePath(); ctx.fill();
+    pen(ctx, COL.red, 1); ctx.beginPath(); ctx.moveTo(C - 8.5, C + 4.8); ctx.quadraticCurveTo(C - 3, C + 2.6, C + 2.5, C + 4.9); ctx.stroke();
+    pen(ctx, 'rgba(212,71,79,.9)', 0.8); cir(ctx, C + 3.5, C + 8.5, 1.1); cir(ctx, C - 2, C + 10, 0.7);
+    ctx.restore();
+    // glass line + standing sheen
+    pen(ctx, COL.bone, 1.3); flask(); ctx.stroke();
+    pen(ctx, 'rgba(238,235,221,.65)', 1.4); ctx.beginPath(); ctx.moveTo(C - 6.5, C + 2); ctx.quadraticCurveTo(C - 7.5, C + 6, C - 5, C + 10.5); ctx.stroke();
+    // cork + neck cord
+    ctx.fillStyle = COL.wood; ctx.fillRect(C - 3.8, C - 16, 7.6, 3.6);
+    pen(ctx, COL.woodD, 1); ctx.strokeRect(C - 3.8, C - 16, 7.6, 3.6);
+    pen(ctx, COL.gold, 1); ln(ctx, C - 3.4, C - 11.5, C + 3.4, C - 11.5);
+    glint(ctx, C - 1.2, C - 14.8, 0.6);
+  },
+  glasseye(ctx) {
+    // brass socket rim
+    pen(ctx, COL.goldD, 2.2); cir(ctx, C, C, 13.6);
+    pen(ctx, COL.gold, 1); cir(ctx, C, C, 13.6);
+    // porcelain sphere
+    ctx.fillStyle = '#8f8570'; cir(ctx, C, C, 11.8, true);
+    ctx.fillStyle = lg(ctx, C - 8, C - 9, C + 8, C + 9, [[0, '#fdfbf2'], [0.5, COL.white], [1, '#a89f8a']]); cir(ctx, C - 0.4, C - 0.4, 11.2, true);
+    // iris: cold glass depths with striations
+    const ir = ctx.createRadialGradient(C - 1.2, C - 1.2, 0.5, C, C, 6.4);
+    ir.addColorStop(0, '#7d9cc9'); ir.addColorStop(0.65, COL.navy); ir.addColorStop(1, '#1c2438');
+    ctx.fillStyle = ir; cir(ctx, C, C, 6.4, true);
+    pen(ctx, '#131a29', 1); cir(ctx, C, C, 6.4);
+    pen(ctx, 'rgba(125,156,201,.5)', 0.8);
+    for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2 + 0.2; ln(ctx, C + Math.cos(a) * 3.2, C + Math.sin(a) * 3.2, C + Math.cos(a) * 5.6, C + Math.sin(a) * 5.6); }
+    dot(ctx, C, C, 2.6, COL.ink);
+    // window reflection + sphere sheen
+    glint(ctx, C - 2.4, C - 2.6, 1.4); glint(ctx, C + 1.8, C + 2, 0.6);
+    pen(ctx, 'rgba(238,235,221,.5)', 1.2); ctx.beginPath(); ctx.arc(C, C, 9, -2.9, -1.7); ctx.stroke();
+    // fine veins in the white
+    pen(ctx, 'rgba(212,71,79,.5)', 0.7); ln(ctx, C - 10.2, C + 3, C - 7, C + 2); ln(ctx, C + 8, C + 4.5, C + 10.4, C + 6.2);
+  },
+  rosary(ctx) {
+    // knotted cord loop
+    pen(ctx, '#4a3956', 1.4); cir(ctx, C, C - 3.5, 9.5);
+    // beads: lacquered garnets, each with its own spark
+    for (let i = 0; i < 10; i++) {
+      const a = i / 10 * Math.PI * 2 - Math.PI / 2, x = C + Math.cos(a) * 9.5, y = C - 3.5 + Math.sin(a) * 9.5;
+      dot(ctx, x + 0.4, y + 0.5, 2.1, COL.bloodD); dot(ctx, x, y, 1.7, COL.blood); glint(ctx, x - 0.5, y - 0.6, 0.5);
+    }
+    // gaud bead in gold at the join
+    dot(ctx, C, C + 6.6, 2.5, COL.goldD); dot(ctx, C - 0.3, C + 6.3, 1.9, COL.gold); glint(ctx, C - 0.9, C + 5.7, 0.5);
+    // hanging cross: dark iron under moonlit steel
+    pen(ctx, COL.steelD, 3.2); ln(ctx, C, C + 9, C, C + 17); ln(ctx, C - 3.6, C + 11.8, C + 3.6, C + 11.8);
+    pen(ctx, COL.steelL, 1.2); ln(ctx, C, C + 9.5, C, C + 16.5); ln(ctx, C - 3.2, C + 11.8, C + 3.2, C + 11.8);
+    glint(ctx, C - 0.8, C + 10.4, 0.6);
+  },
+  ratking(ctx) {
+    // knotted tails beneath: the curse that binds them
+    pen(ctx, COL.boneD, 1.6);
+    ctx.beginPath(); ctx.moveTo(C - 11, C + 8); ctx.bezierCurveTo(C - 4, C + 14.5, C + 4, C + 6.5, C + 11, C + 12.5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(C - 9, C + 13); ctx.bezierCurveTo(C - 2, C + 6.5, C + 2, C + 14.5, C + 10, C + 7.5); ctx.stroke();
+    pen(ctx, COL.bone, 0.9); ctx.beginPath(); ctx.moveTo(C - 11, C + 8); ctx.bezierCurveTo(C - 4, C + 14, C + 4, C + 6, C + 11, C + 12); ctx.stroke();
+    dot(ctx, C + 0.2, C + 10.3, 2, COL.boneD); dot(ctx, C - 0.1, C + 10, 1.3, COL.bone);
+    // the rat: dark fur with a moonlit back, nosing right
+    const bod = () => { ctx.beginPath(); ctx.moveTo(C + 12, C - 1.5); ctx.quadraticCurveTo(C + 6, C - 10.5, C - 3, C - 8.5); ctx.quadraticCurveTo(C - 11, C - 6.5, C - 10.5, C + 0.5); ctx.quadraticCurveTo(C - 10, C + 6, C - 2, C + 6.5); ctx.quadraticCurveTo(C + 6, C + 7, C + 12, C - 1.5); ctx.closePath(); };
+    bod(); ctx.fillStyle = lg(ctx, C - 8, C - 8, C + 6, C + 6, [[0, '#5c5766'], [0.5, '#3f3b49'], [1, '#2c2833']]); ctx.fill();
+    pen(ctx, '#6b6575', 1); bod(); ctx.stroke();
+    // snout, pink nose, whiskers
+    ctx.fillStyle = '#3f3b49'; poly(ctx, [[C + 11.5, C - 2], [C + 16.5, C + 0.5], [C + 10.5, C + 2.5]], true);
+    dot(ctx, C + 16.8, C + 0.6, 0.9, '#c9868d');
+    pen(ctx, 'rgba(201,206,212,.6)', 0.7); ln(ctx, C + 13.5, C + 0.2, C + 17.2, C - 2.4); ln(ctx, C + 13.5, C + 1.2, C + 17.6, C + 2);
+    // ear with a pink inner
+    pen(ctx, '#6b6575', 2.2); cir(ctx, C + 2.5, C - 8.8, 2.4);
+    ctx.fillStyle = '#c9868d'; cir(ctx, C + 2.5, C - 8.8, 1.2, true);
+    // moonlit spine
+    pen(ctx, 'rgba(154,161,168,.5)', 1.2); ctx.beginPath(); ctx.moveTo(C - 7, C - 6.2); ctx.quadraticCurveTo(C - 1, C - 9.6, C + 5.5, C - 7.2); ctx.stroke();
+    // ember eye + the stolen crown
+    dot(ctx, C + 9.3, C - 2.6, 1.2, COL.ink); dot(ctx, C + 9.3, C - 2.6, 0.7, COL.red);
+    const crown = [[C + 4.4, C - 8.8], [C + 5.4, C - 14], [C + 7.6, C - 10.8], [C + 9.9, C - 14.3], [C + 11.2, C - 8.4]];
+    ctx.fillStyle = COL.gold; poly(ctx, crown, true);
+    pen(ctx, COL.goldD, 0.9); poly(ctx, crown);
+    dot(ctx, C + 5.3, C - 14.4, 0.7, COL.goldL); dot(ctx, C + 10, C - 14.7, 0.7, COL.goldL);
+    glint(ctx, C - 4, C - 6.8, 0.9);
+  },
+  gravehand(ctx) {
+    // fresh-turned mound
+    const mound = () => { ctx.beginPath(); ctx.moveTo(C - 16, C + 15); ctx.quadraticCurveTo(C - 8, C + 6.5, C, C + 7.5); ctx.quadraticCurveTo(C + 9, C + 8.5, C + 16, C + 15); ctx.lineTo(C + 16, C + 17); ctx.lineTo(C - 16, C + 17); ctx.closePath(); };
+    mound(); ctx.fillStyle = lg(ctx, C, C + 6, C, C + 16, [[0, '#402a16'], [1, '#241708']]); ctx.fill();
+    pen(ctx, '#5c3d22', 1); ctx.beginPath(); ctx.moveTo(C - 15, C + 14.5); ctx.quadraticCurveTo(C - 8, C + 6.8, C, C + 7.8); ctx.quadraticCurveTo(C + 9, C + 8.8, C + 15, C + 14.5); ctx.stroke();
+    dot(ctx, C - 9, C + 12, 1, '#5c3d22'); dot(ctx, C + 7.5, C + 12.5, 0.8, '#5c3d22');
+    // bone hand bursting out: palm + reaching fingers, lit knuckle tips
+    const finger = (x0, y0, x1, y1, w) => { pen(ctx, COL.boneD, w + 1.3); ln(ctx, x0, y0, x1, y1); pen(ctx, COL.bone, w); ln(ctx, x0, y0, x1, y1); dot(ctx, x1, y1, w * 0.58, COL.boneL); };
+    pen(ctx, COL.boneD, 7); ln(ctx, C - 0.5, C + 8, C - 0.5, C + 3);
+    pen(ctx, COL.bone, 5); ln(ctx, C - 0.5, C + 8, C - 0.5, C + 3.5);
+    finger(C - 3.2, C + 3, C - 5.8, C - 6.5, 1.9);
+    finger(C - 1, C + 2, C - 1.4, C - 9.5, 1.9);
+    finger(C + 1.6, C + 2.2, C + 2.6, C - 8, 1.9);
+    finger(C + 3.6, C + 3.6, C + 5.8, C - 4.5, 1.8);
+    finger(C - 3.8, C + 5.5, C - 8.5, C + 1, 1.8);
+    // joint shadows
+    pen(ctx, COL.boneD, 0.9); ln(ctx, C - 5.2, C - 2.2, C - 4.4, C - 2); ln(ctx, C - 1.4, C - 4.5, C - 0.5, C - 4.5); ln(ctx, C + 1.9, C - 3.4, C + 2.8, C - 3.2);
+    // soil crumbs still falling
+    dot(ctx, C - 7, C - 10, 0.9, '#5c3d22'); dot(ctx, C + 6.5, C - 10.5, 0.7, '#5c3d22'); dot(ctx, C + 9.5, C - 5, 0.6, '#402a16');
+    glint(ctx, C - 1.9, C - 9.9, 0.7);
+  },
+  gunpowder(ctx) {
+    const kt = C - 7, kb = C + 13;
+    // staved keg with a bulged waist
+    const barrel = () => { ctx.beginPath(); ctx.moveTo(C - 9, kt); ctx.quadraticCurveTo(C - 12.3, C + 3, C - 9, kb); ctx.lineTo(C + 9, kb); ctx.quadraticCurveTo(C + 12.3, C + 3, C + 9, kt); ctx.closePath(); };
+    barrel(); ctx.fillStyle = lg(ctx, C - 9, C, C + 9, C, [[0, COL.wood], [0.45, '#5c3d22'], [1, COL.woodD]]); ctx.fill();
+    pen(ctx, COL.woodD, 1.2); barrel(); ctx.stroke();
+    // stave seams
+    pen(ctx, 'rgba(36,23,8,.8)', 1); ln(ctx, C - 3.5, kt + 0.5, C - 4.2, kb - 0.5); ln(ctx, C + 3.5, kt + 0.5, C + 4.2, kb - 0.5);
+    // iron hoops with a lit top edge
+    for (const y of [kt + 3.2, kb - 3.6]) { pen(ctx, COL.steelD, 2.6); ln(ctx, C - 11, y, C + 11, y); pen(ctx, COL.steelL, 0.9); ln(ctx, C - 10.5, y - 0.8, C + 10.5, y - 0.8); }
+    // lid
+    ctx.fillStyle = '#5c3d22'; ctx.beginPath(); ctx.ellipse(C, kt, 9, 3, 0, 0, Math.PI * 2); ctx.fill();
+    pen(ctx, COL.woodD, 1); ctx.beginPath(); ctx.ellipse(C, kt, 9, 3, 0, 0, Math.PI * 2); ctx.stroke();
+    // powder heaped at the bung
+    dot(ctx, C + 1, kt - 0.5, 1.9, COL.ink);
+    for (const [x, y] of [[C + 3.2, kt - 2], [C - 1.5, kt - 2.4], [C + 5.5, kt - 3.6]]) dot(ctx, x, y, 0.8, '#2c2833');
+    // fuse snaking up, burning down
+    pen(ctx, COL.woodD, 2.2); ctx.beginPath(); ctx.moveTo(C + 1, kt - 1); ctx.bezierCurveTo(C + 7, kt - 6, C + 2, kt - 8.5, C + 7.5, kt - 12); ctx.stroke();
+    pen(ctx, COL.gold, 0.9); ctx.beginPath(); ctx.moveTo(C + 1.4, kt - 1.4); ctx.bezierCurveTo(C + 7, kt - 6.3, C + 2.4, kt - 8.7, C + 7.3, kt - 11.7); ctx.stroke();
+    // the spark
+    dot(ctx, C + 8.2, kt - 12.6, 1.8, COL.orange); dot(ctx, C + 8.2, kt - 12.6, 0.9, COL.flameCore);
+    pen(ctx, COL.ember, 1); for (const a of [-0.6, 0.7, 2.2, 3.6, 4.6]) ln(ctx, C + 8.2 + Math.cos(a) * 2.6, kt - 12.6 + Math.sin(a) * 2.6, C + 8.2 + Math.cos(a) * 4.4, kt - 12.6 + Math.sin(a) * 4.4);
+    glint(ctx, C - 6.5, C - 3, 1);
+  },
+  boneoil(ctx) {
+    // squat jar of rendered marrow
+    const jar = () => { ctx.beginPath(); ctx.moveTo(C - 3.5, C - 8); ctx.quadraticCurveTo(C - 9.5, C - 5.5, C - 9.5, C + 4); ctx.quadraticCurveTo(C - 9.5, C + 12, C, C + 12); ctx.quadraticCurveTo(C + 9.5, C + 12, C + 9.5, C + 4); ctx.quadraticCurveTo(C + 9.5, C - 5.5, C + 3.5, C - 8); ctx.closePath(); };
+    ctx.fillStyle = 'rgba(216,199,164,.16)'; jar(); ctx.fill();
+    // the oil: slow amber with lazy bubbles
+    ctx.save(); jar(); ctx.clip();
+    ctx.fillStyle = lg(ctx, C, C - 2, C, C + 12, [[0, '#8a6a2a'], [0.5, '#5c4418'], [1, '#3a2c10']]); ctx.fillRect(C - 10, C - 1.5, 20, 14);
+    pen(ctx, 'rgba(226,189,102,.85)', 1); ln(ctx, C - 8.8, C - 1, C + 8.8, C - 1);
+    pen(ctx, 'rgba(226,189,102,.5)', 0.8); cir(ctx, C - 3, C + 4.5, 1.2); cir(ctx, C + 3.5, C + 7.5, 0.8);
+    ctx.restore();
+    // glass rim + standing sheen
+    pen(ctx, COL.bone, 1.3); jar(); ctx.stroke();
+    pen(ctx, 'rgba(238,235,221,.55)', 1.3); ctx.beginPath(); ctx.moveTo(C - 6.8, C - 2.5); ctx.quadraticCurveTo(C - 7.6, C + 3, C - 5.5, C + 8.5); ctx.stroke();
+    // knucklebone stopper: femur shaft with paired condyles
+    ctx.fillStyle = COL.boneD; ctx.fillRect(C - 2.2, C - 13.5, 4.4, 6);
+    ctx.fillStyle = COL.bone; ctx.fillRect(C - 1.6, C - 13.5, 3, 6);
+    dot(ctx, C - 2.2, C - 14.5, 1.8, COL.bone); dot(ctx, C + 2, C - 14.8, 1.8, COL.boneL);
+    dot(ctx, C - 2, C - 8, 1.6, COL.boneD); dot(ctx, C + 2, C - 8.2, 1.6, COL.bone);
+    // blood-wax seal drip on the shoulder
+    pen(ctx, COL.blood, 1.4); ln(ctx, C + 4.6, C - 7, C + 5.6, C - 3);
+    dot(ctx, C + 5.8, C - 2.2, 0.9, COL.blood);
+    glint(ctx, C - 1, C - 14, 0.7);
+  },
+  tongue(ctx) {
+    // iron rail it hangs from + piercing hook
+    pen(ctx, COL.steelD, 3); ln(ctx, C - 10.5, C - 13.5, C + 10.5, C - 13.5);
+    pen(ctx, COL.steelL, 1.1); ln(ctx, C - 10, C - 14.1, C + 10, C - 14.1);
+    pen(ctx, COL.steel, 1.6); ctx.beginPath(); ctx.arc(C, C - 10, 3.2, -Math.PI * 0.95, Math.PI * 0.45); ctx.stroke();
+    // the trophy: dark flesh shadow under a wet gradient
+    const tg = (dx, dy) => { ctx.beginPath(); ctx.moveTo(C - 6.5 + dx, C - 8 + dy); ctx.quadraticCurveTo(C - 8 + dx, C + 3 + dy, C - 3.5 + dx, C + 10 + dy); ctx.quadraticCurveTo(C + dx, C + 15 + dy, C + 3.5 + dx, C + 10 + dy); ctx.quadraticCurveTo(C + 8 + dx, C + 3 + dy, C + 6.5 + dx, C - 8 + dy); ctx.closePath(); };
+    tg(0.8, 0.8); ctx.fillStyle = COL.bloodD; ctx.fill();
+    tg(0, 0); ctx.fillStyle = lg(ctx, C - 5, C - 6, C + 5, C + 12, [[0, '#c9565e'], [0.45, COL.red], [1, COL.blood]]); ctx.fill();
+    pen(ctx, COL.bloodD, 1); tg(0, 0); ctx.stroke();
+    // median sulcus + papillae stipple
+    pen(ctx, COL.bloodD, 1.3); ln(ctx, C, C - 5.5, C, C + 10.5);
+    for (const [x, y] of [[C - 3.5, C - 3], [C + 3.5, C - 2], [C - 3, C + 3], [C + 3, C + 4.5]]) dot(ctx, x, y, 0.5, 'rgba(91,20,31,.8)');
+    // ragged cut at the root
+    pen(ctx, COL.bloodD, 1.6); ctx.beginPath(); ctx.moveTo(C - 6.5, C - 8); ctx.lineTo(C - 3.5, C - 6.8); ctx.lineTo(C - 1, C - 8.2); ctx.lineTo(C + 2, C - 6.8); ctx.lineTo(C + 6.5, C - 8); ctx.stroke();
+    // wet highlight + gathering drop at the tip
+    pen(ctx, 'rgba(238,235,221,.65)', 1.4); ctx.beginPath(); ctx.moveTo(C - 4.2, C - 3.5); ctx.quadraticCurveTo(C - 5.2, C + 2, C - 3, C + 7.5); ctx.stroke();
+    dot(ctx, C + 0.6, C + 15.4, 1, COL.red); glint(ctx, C + 0.3, C + 15.1, 0.35);
+  },
+  silkstring(ctx) {
+    // web corner: radial anchor lines from the top-left
+    pen(ctx, 'rgba(143,133,112,.9)', 1);
+    for (const [x2, y2] of [[C + 18, C - 6], [C + 14, C + 8], [C + 4, C + 17], [C - 8, C + 16]]) ln(ctx, C - 14, C - 14, x2, y2);
+    // silk strands: shadowed cords with a pale sheen
+    for (const r of [11, 18, 25]) {
+      pen(ctx, 'rgba(95,85,64,.9)', 2); ctx.beginPath(); ctx.arc(C - 14, C - 14, r, 0.12, 1.45); ctx.stroke();
+      pen(ctx, COL.boneL, 0.9); ctx.beginPath(); ctx.arc(C - 14, C - 14, r, 0.12, 1.45); ctx.stroke();
+    }
+    // dew beads riding the outer strand
+    for (const a of [0.42, 0.85, 1.2]) { const x = C - 14 + Math.cos(a) * 25, y = C - 14 + Math.sin(a) * 25; dot(ctx, x, y, 1, COL.white); glint(ctx, x - 0.4, y - 0.5, 0.4); }
+    // the red thread of fate woven through
+    pen(ctx, COL.bloodD, 2.2); ctx.beginPath(); ctx.moveTo(C + 12, C - 15.5); ctx.bezierCurveTo(C + 2, C - 4, C + 8, C + 4, C - 2, C + 13.5); ctx.stroke();
+    pen(ctx, COL.red, 1); ctx.beginPath(); ctx.moveTo(C + 11.5, C - 15.5); ctx.bezierCurveTo(C + 1.6, C - 4, C + 7.6, C + 4, C - 2.4, C + 13); ctx.stroke();
+    // spider bead riding the thread
+    dot(ctx, C + 6.3, C - 0.5, 2, COL.ink); dot(ctx, C + 6.3, C - 0.5, 1.2, '#2c2833');
+    pen(ctx, COL.ink, 0.8);
+    for (const d of [-1, 1]) { ln(ctx, C + 4.8, C - 0.5 + d, C + 2.8, C - 0.5 + d * 2.8); ln(ctx, C + 7.8, C - 0.5 + d, C + 9.8, C - 0.5 + d * 2.8); }
+    glint(ctx, C + 5.7, C - 1.2, 0.4);
+  },
+  twinmask(ctx) {
+    const face = (cx, cy, rot) => { ctx.beginPath(); ctx.ellipse(cx, cy, 6.8, 9.6, rot, 0, Math.PI * 2); };
+    // obsidian mask behind-right: grief
+    face(C + 5.5, C + 3, 0.22); ctx.fillStyle = lg(ctx, C, C - 4, C + 11, C + 11, [[0, '#4a4550'], [0.5, '#221e26'], [1, '#131118']]); ctx.fill();
+    pen(ctx, '#8a8496', 1.2); face(C + 5.5, C + 3, 0.22); ctx.stroke();
+    pen(ctx, '#8a8496', 1.3); ln(ctx, C + 3.2, C + 0.6, C + 5.2, C + 1.1); ln(ctx, C + 7.2, C + 1.5, C + 9.2, C + 2.1);
+    ctx.beginPath(); ctx.arc(C + 6, C + 9.4, 2.6, Math.PI + 0.4, -0.4); ctx.stroke();
+    dot(ctx, C + 4, C + 4.4, 1, COL.ember); // one ember tear
+    pen(ctx, 'rgba(240,168,90,.5)', 0.8); ln(ctx, C + 3.8, C + 2.2, C + 4, C + 3.4);
+    // porcelain mask front-left: mirth
+    face(C - 5, C - 3, -0.22); ctx.fillStyle = '#a89f8a'; ctx.fill();
+    ctx.save(); ctx.translate(-0.6, -0.6); face(C - 5, C - 3, -0.22); ctx.fillStyle = lg(ctx, C - 11, C - 11, C + 1, C + 5, [[0, '#fdfbf2'], [0.6, COL.white], [1, '#c9c2ae']]); ctx.fill(); ctx.restore();
+    pen(ctx, '#8f8570', 1); face(C - 5, C - 3, -0.22); ctx.stroke();
+    pen(ctx, COL.ink, 1.3);
+    ctx.beginPath(); ctx.arc(C - 7.6, C - 5.2, 1.7, Math.PI + 0.3, -0.3); ctx.stroke();
+    ctx.beginPath(); ctx.arc(C - 2.8, C - 5.9, 1.7, Math.PI + 0.3, -0.3); ctx.stroke();
+    ctx.beginPath(); ctx.arc(C - 5.6, C + 0.8, 3, 0.35, Math.PI - 0.5); ctx.stroke();
+    // the gold cord binding the pair
+    pen(ctx, COL.gold, 1.1); ctx.beginPath(); ctx.moveTo(C - 9.5, C - 11.5); ctx.quadraticCurveTo(C, C - 15.5, C + 9.2, C - 5.5); ctx.stroke();
+    dot(ctx, C - 9.8, C - 11.8, 1, COL.gold); dot(ctx, C + 9.5, C - 5.3, 1, COL.gold);
+    glint(ctx, C - 8, C - 8.5, 1);
+  },
+  ashfeather(ctx) {
+    // ember motes drifting off the burning tip
+    dot(ctx, C + 12, C - 13.5, 1, COL.ember); dot(ctx, C + 15, C - 9.5, 0.7, COL.orange); dot(ctx, C + 9.5, C - 16.5, 0.6, 'rgba(240,168,90,.7)');
+    // charcoal vane with a cold rim light
+    const vane = () => { ctx.beginPath(); ctx.moveTo(C - 11, C + 14); ctx.quadraticCurveTo(C - 6, C - 12, C + 10, C - 14); ctx.quadraticCurveTo(C + 10.5, C - 2, C - 11, C + 14); ctx.closePath(); };
+    vane(); ctx.fillStyle = lg(ctx, C - 8, C + 10, C + 8, C - 12, [[0, '#4a4550'], [0.5, '#38343f'], [1, '#6b6575']]); ctx.fill();
+    pen(ctx, '#8a8496', 1.1); vane(); ctx.stroke();
+    // ash-pale rachis
+    pen(ctx, COL.bone, 1.7); ctx.beginPath(); ctx.moveTo(C - 11, C + 14); ctx.quadraticCurveTo(C - 1, C - 1, C + 9, C - 13); ctx.stroke();
+    // barb splits
+    pen(ctx, 'rgba(154,148,165,.9)', 1); ln(ctx, C - 4, C + 4.5, C - 8.5, C + 2.5); ln(ctx, C + 0.5, C - 1.5, C - 3.5, C - 4.5); ln(ctx, C + 4.5, C - 6.5, C + 1, C - 9.5);
+    // smouldering edge
+    pen(ctx, COL.orange, 1.6); ctx.beginPath(); ctx.moveTo(C + 5.5, C - 9.5); ctx.quadraticCurveTo(C + 8, C - 12, C + 10, C - 14); ctx.stroke();
+    pen(ctx, COL.ember, 0.9); ctx.beginPath(); ctx.moveTo(C + 6.5, C - 10.5); ctx.quadraticCurveTo(C + 8.5, C - 12.3, C + 10, C - 14); ctx.stroke();
+    // flakes of ash shedding from the base
+    ctx.fillStyle = '#4a4550'; poly(ctx, [[C - 13.5, C + 15.5], [C - 12, C + 14.2], [C - 11.5, C + 16.2]], true);
+    ctx.fillStyle = '#3f3b49'; poly(ctx, [[C - 15.5, C + 11.5], [C - 14.2, C + 10.4], [C - 13.8, C + 12.4]], true);
+    glint(ctx, C - 3, C - 5.5, 0.8);
+  },
+  heartscar(ctx) {
+    // an older, darker heart
+    const heart = (s) => { ctx.beginPath(); ctx.moveTo(C, C + 13 * s); ctx.bezierCurveTo(C - 17 * s, C + 1 * s, C - 9.5 * s, C - 12 * s, C, C - 4 * s); ctx.bezierCurveTo(C + 9.5 * s, C - 12 * s, C + 17 * s, C + 1 * s, C, C + 13 * s); ctx.closePath(); };
+    heart(1.12); ctx.fillStyle = '#54121d'; ctx.fill();
+    heart(1); ctx.fillStyle = lg(ctx, C - 8, C - 9, C + 8, C + 10, [[0, COL.blood], [0.6, COL.bloodD], [1, '#3a0c13']]); ctx.fill();
+    // the old wound: pale scar ridge crossing it
+    const scar = (col, w) => { pen(ctx, col, w); ctx.beginPath(); ctx.moveTo(C - 6, C - 7.5); ctx.quadraticCurveTo(C - 1, C - 2, C + 5, C + 6.5); ctx.stroke(); };
+    scar(COL.boneD, 2.6); scar(COL.bone, 1.3);
+    // crude stitches holding it shut
+    pen(ctx, COL.boneL, 1.1); ln(ctx, C - 6, C - 3.5, C - 2.5, C - 6.5); ln(ctx, C - 3.4, C - 0.6, C + 0.4, C - 3.6); ln(ctx, C - 0.6, C + 2.4, C + 3, C - 0.4); ln(ctx, C + 1.6, C + 5.2, C + 5.4, C + 2.6);
+    // dulled highlight: it no longer shines wet
+    pen(ctx, 'rgba(216,199,164,.35)', 1.4); ctx.beginPath(); ctx.moveTo(C - 9.5, C - 4); ctx.quadraticCurveTo(C - 11, C, C - 8, C + 3.5); ctx.stroke();
+    glint(ctx, C - 7, C - 6.5, 0.9);
+  },
+  belltongueIcon(ctx) {
+    // ghost of the bell it was torn from
+    pen(ctx, 'rgba(143,133,112,.45)', 1.2);
+    ctx.beginPath(); ctx.moveTo(C - 11, C - 4); ctx.quadraticCurveTo(C - 11, C - 16.5, C, C - 16.5); ctx.quadraticCurveTo(C + 11, C - 16.5, C + 11, C - 4); ctx.stroke();
+    ln(ctx, C - 13.5, C - 3.5, C - 9, C - 3.5); ln(ctx, C + 9, C - 3.5, C + 13.5, C - 3.5);
+    // hanger loop: dark bronze with a lit crown
+    pen(ctx, COL.goldD, 2.4); cir(ctx, C, C - 8.5, 2.6);
+    pen(ctx, COL.goldL, 1); ctx.beginPath(); ctx.arc(C, C - 8.5, 2.6, -2.8, -0.9); ctx.stroke();
+    // shaft: cast bronze, two-tone with a collar ring
+    pen(ctx, COL.goldD, 4); ln(ctx, C, C - 5.5, C, C + 6);
+    pen(ctx, COL.gold, 2); ln(ctx, C, C - 5, C, C + 6);
+    pen(ctx, COL.goldL, 0.9); ln(ctx, C - 0.9, C - 4.5, C - 0.9, C + 5);
+    pen(ctx, COL.goldD, 1.2); ln(ctx, C - 2.4, C - 1.5, C + 2.4, C - 1.5);
+    // the ball: heavy cast sphere, worn at its striking face
+    dot(ctx, C, C + 10.5, 6.1, COL.goldD);
+    ctx.fillStyle = lg(ctx, C - 4.5, C + 6, C + 4.5, C + 15, [[0, COL.goldL], [0.45, COL.gold], [1, COL.goldD]]); cir(ctx, C, C + 10.5, 5.2, true);
+    pen(ctx, '#4a3510', 1); ctx.beginPath(); ctx.arc(C, C + 10.5, 3.4, 0.6, 2.4); ctx.stroke();
+    glint(ctx, C - 1.8, C + 8.4, 1.1);
+    // it still rings against nothing
+    pen(ctx, 'rgba(240,168,90,.85)', 1.1); ln(ctx, C + 6.8, C + 14.5, C + 9.8, C + 17); ln(ctx, C + 8.2, C + 11.5, C + 11.8, C + 13);
+    dot(ctx, C - 8.5, C + 15.5, 0.8, COL.ember);
+  },
 };
 
 // ---- unified finishing pipeline: soft underlay → ink rim → glyph → top-left sheen ----

@@ -775,15 +775,174 @@ export function buildSprites() {
   for (const [id, c] of Object.entries(SPRITES.enemies)) SPRITES.whiteOut[id] = variant(c, { tint: '#EEEBDD', tintAlpha: 1 });
 }
 
-// big portrait canvas for menus (scaled, framed)
+/* ============================= portrait cards ============================= */
+// theme glow per character — the color of each hero's signature relic
+const PORTRAIT_GLOW = {
+  adric: '#D4474F',    // 心灯之红
+  evlann: '#E0C06A',   // 裂环金
+  hemer: '#9DB38C',    // 疫香绿
+  corlan: '#E89A4A',   // 钟铜橙
+  vielna: '#8A6BA0',   // 空冠紫
+  samuel: '#C96B2F',   // 硫火橙
+  mina: '#E8D98A',     // 魂灯烛黄
+  voll: '#A62C3C',     // 刑台血红
+  rahshiel: '#C7D0E8', // 残翼灰蓝白
+  noin: '#6E86B8',     // 黑镜冷蓝
+};
+
+function hexRGB(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+// fallback for unlisted ids: weighted dominant color of the sprite's
+// saturated bright pixels (armor greys / blacks barely contribute)
+function spriteThemeColor(src) {
+  const w = src.width, h = src.height;
+  const d = src.getContext('2d').getImageData(0, 0, w, h).data;
+  let r = 0, g = 0, b = 0, wt = 0;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] < 160) continue;
+    const mx = Math.max(d[i], d[i + 1], d[i + 2]);
+    const mn = Math.min(d[i], d[i + 1], d[i + 2]);
+    if (mx < 70) continue;
+    const k = (mx - mn) * (mx - mn) * 0.01 + mx * 0.05;
+    r += d[i] * k; g += d[i + 1] * k; b += d[i + 2] * k; wt += k;
+  }
+  if (!wt) return '#B58D3B';
+  const to2 = v => Math.round(v / wt).toString(16).padStart(2, '0');
+  return '#' + to2(r) + to2(g) + to2(b);
+}
+
+// deterministic grain tile (dark specks + pale parchment flecks), built once
+let _noiseTile = null;
+function portraitNoise() {
+  if (_noiseTile) return _noiseTile;
+  const n = 64;
+  _noiseTile = document.createElement('canvas');
+  _noiseTile.width = n; _noiseTile.height = n;
+  const ctx = _noiseTile.getContext('2d');
+  const img = ctx.createImageData(n, n);
+  let s = 0x9E3779B9;
+  const rnd = () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const v = rnd();
+    if (v < 0.17) { // sarcophagus grain
+      img.data[i] = 6; img.data[i + 1] = 4; img.data[i + 2] = 3;
+      img.data[i + 3] = 26 + rnd() * 44 | 0;
+    } else if (v > 0.9) { // pale parchment fleck
+      img.data[i] = 226; img.data[i + 1] = 206; img.data[i + 2] = 166;
+      img.data[i + 3] = 9 + rnd() * 18 | 0;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return _noiseTile;
+}
+
+// short double-line L ornament hugging one corner of the frame
+function portraitCornerL(ctx, x0, y0, dx, dy, inset, len) {
+  ctx.beginPath();
+  ctx.moveTo(x0 + dx * inset, y0 + dy * (inset + len));
+  ctx.lineTo(x0 + dx * inset, y0 + dy * inset);
+  ctx.lineTo(x0 + dx * (inset + len), y0 + dy * inset);
+  ctx.stroke();
+}
+
+const portraitCache = new Map();
+
+// big portrait card for menus — dark parchment ground, theme glow,
+// pixel-sharp centered sprite, gold frame. Same signature as before.
 export function makePortrait(charId, size = 96) {
+  const key = charId + '@' + size;
+  const hit = portraitCache.get(key);
+  if (hit) return hit;
   const src = SPRITES.chars[charId];
   const c = document.createElement('canvas');
   c.width = size; c.height = size;
   const ctx = c.getContext('2d');
   ctx.imageSmoothingEnabled = false;
-  const s = Math.floor(size * 0.9 / Math.max(src.width, src.height));
-  const w = src.width * s, h = src.height * s;
-  ctx.drawImage(src, (size - w) / 2, (size - h) / 2, w, h);
+
+  // 1) dark parchment / sarcophagus ground
+  const g0 = ctx.createLinearGradient(0, 0, 0, size);
+  g0.addColorStop(0, '#2b2119');
+  g0.addColorStop(0.5, '#1e1712');
+  g0.addColorStop(1, '#120d0a');
+  ctx.fillStyle = g0;
+  ctx.fillRect(0, 0, size, size);
+  const warm = ctx.createRadialGradient(size / 2, size * 0.42, size * 0.06, size / 2, size * 0.42, size * 0.62);
+  warm.addColorStop(0, 'rgba(216,199,164,0.08)');
+  warm.addColorStop(1, 'rgba(216,199,164,0)');
+  ctx.fillStyle = warm;
+  ctx.fillRect(0, 0, size, size);
+  ctx.fillStyle = ctx.createPattern(portraitNoise(), 'repeat');
+  ctx.fillRect(0, 0, size, size);
+
+  // 2) theme glow behind the figure
+  const [gr, gg, gb] = hexRGB(PORTRAIT_GLOW[charId] || (src ? spriteThemeColor(src) : '#B58D3B'));
+  const glow = ctx.createRadialGradient(size / 2, size * 0.45, size * 0.03, size / 2, size * 0.45, size * 0.42);
+  glow.addColorStop(0, `rgba(${gr},${gg},${gb},0.38)`);
+  glow.addColorStop(0.55, `rgba(${gr},${gg},${gb},0.15)`);
+  glow.addColorStop(1, `rgba(${gr},${gg},${gb},0)`);
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, size, size);
+  // faint saint-halo ring behind the figure
+  ctx.strokeStyle = `rgba(${gr},${gg},${gb},0.22)`;
+  ctx.lineWidth = Math.max(1, size * 0.014);
+  ctx.beginPath();
+  ctx.arc(size / 2, size * 0.44, size * 0.315, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.strokeStyle = `rgba(${gr},${gg},${gb},0.1)`;
+  ctx.lineWidth = Math.max(1, size * 0.03);
+  ctx.beginPath();
+  ctx.arc(size / 2, size * 0.44, size * 0.345, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // 3) vignette — darkened corners seat the figure in the card
+  const vin = ctx.createRadialGradient(size / 2, size / 2, size * 0.34, size / 2, size / 2, size * 0.74);
+  vin.addColorStop(0, 'rgba(0,0,0,0)');
+  vin.addColorStop(1, 'rgba(0,0,0,0.55)');
+  ctx.fillStyle = vin;
+  ctx.fillRect(0, 0, size, size);
+
+  if (src) {
+    // 4) centered sprite at integer scale, elliptical shadow under the feet
+    const s = Math.max(1, Math.floor(size * 0.72 / Math.max(src.width, src.height)));
+    const w = src.width * s, h = src.height * s;
+    const x = Math.round((size - w) / 2);
+    const feetY = Math.round(size * 0.85);
+    const y = Math.max(Math.round(size * 0.1), feetY - h);
+    const rx = Math.max(6, w * 0.46), ry = Math.max(2.5, s * 1.9);
+    ctx.save();
+    ctx.translate(size / 2, feetY);
+    ctx.scale(1, ry / rx);
+    const sh = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+    sh.addColorStop(0, 'rgba(0,0,0,0.5)');
+    sh.addColorStop(0.7, 'rgba(0,0,0,0.25)');
+    sh.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = sh;
+    ctx.fillRect(-rx, -rx, rx * 2, rx * 2);
+    ctx.restore();
+    ctx.drawImage(src, x, y, w, h);
+  }
+
+  // 5) gold frame: outer hairline, 1px #B58D3B inner frame, corner double lines
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+  ctx.strokeRect(0.5, 0.5, size - 1, size - 1);
+  ctx.strokeStyle = '#B58D3B';
+  ctx.globalAlpha = 0.9;
+  ctx.strokeRect(2.5, 2.5, size - 5, size - 5);
+  const len = Math.max(6, Math.round(size * 0.14));
+  const corners = [[0.5, 0.5, 1, 1], [size - 0.5, 0.5, -1, 1], [0.5, size - 0.5, 1, -1], [size - 0.5, size - 0.5, -1, -1]];
+  ctx.globalAlpha = 0.75;
+  for (const [x0, y0, dx, dy] of corners) portraitCornerL(ctx, x0, y0, dx, dy, 5, len);
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = '#E0C06A';
+  ctx.fillStyle = '#E0C06A';
+  for (const [x0, y0, dx, dy] of corners) {
+    portraitCornerL(ctx, x0, y0, dx, dy, 2, Math.round(len * 0.55));
+    ctx.fillRect(dx > 0 ? x0 + 3.5 : x0 - 4.5, dy > 0 ? y0 + 3.5 : y0 - 4.5, 1, 1);
+  }
+  portraitCache.set(key, c);
   return c;
 }
