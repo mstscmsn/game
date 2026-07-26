@@ -2,7 +2,7 @@
 // fake-heaven obedience ending, final choice, endless loops, results.
 import { G, num, burst, after } from './state.js';
 import { BAL } from '../data/balance.js';
-import { AREAS, PILGRIMAGE, ENDLESS_AFFIXES } from '../data/areas.js';
+import { AREAS, ENDLESS_AFFIXES } from '../data/areas.js';
 import { STORY } from '../data/story.js';
 import { META, saveMeta } from '../meta/save.js';
 import { spawnBoss } from './bosses.js';
@@ -27,46 +27,33 @@ export function enterArea(areaId, opts = {}) {
   if (areaId === 'hell' && (META.nodes['d_freeup'] || 0) > 0) G.freeArtifactUpgrade = 1;
 }
 
-/* ============== per-frame timeline check ============== */
+/* ============== per-frame progression check ==============
+ * Boss-gated pacing: each area's boss appears BAL.bossAfter seconds after
+ * entering; the next area opens only once that boss is dead (章节≈3分钟). */
 export function updateFlow(dt) {
   if (G.phase === 'tribunal') { updateTribunal(dt); return; }
   if (G.phase !== 'play') return;
   const t = G.time;
   if (G.mode === 'pilgrimage' || G.mode === 'daily') {
-    // knell (delayed by 死神怀表)
+    // knell — armed by the whale's death (延迟 by 死神怀表)
     const knell = G.knellAt + (G.player.relics.includes('deathwatch') ? 60 : 0);
     if (!G.executed && t >= knell) { startReaper(); return; }
-    // area transitions per schedule (skip corridor entry — reaper handles it)
-    if (!G.executed) {
-      for (const [at, id] of PILGRIMAGE) {
-        if (id === 'corridor' || id === 'hell') continue;
-        if (t >= at && G.areaId !== id && ['ashfield', 'cathedral', 'bells'].includes(id) && orderOf(id) > orderOf(G.areaId)) enterArea(id);
-      }
-    } else if (G.revived) {
-      if (t >= 1800 && G.areaId === 'hell' && !G.boss) enterArea('fakeheaven');
-      // fake heaven cannot be skipped in a single frame: require dwelling time
-      if (t >= 2280 && G.areaId === 'fakeheaven' && !G.boss && t - G.areaEnteredAt > 60) maybeLeaveFakeHeaven();
-      // 净化祭坛：等待一个安全时机（play 且持有禁器）
-      if (G.areaId === 'trueheaven' && !G.purifyOffered && G.player.forbidden.length > 0 && G.time - G.areaEnteredAt > 4) {
-        G.purifyOffered = true;
-        showPurifyChoice();
-      }
-    }
-    // boss spawns
+    // area boss: spawns on a per-area clock, must be defeated to advance
     const area = AREAS[G.areaId];
-    if (area && area.boss && area.bossAt && !G.bossSpawned && t >= area.bossAt && !G.boss) {
+    if (area && area.boss && !G.bossSpawned && !G.boss && t - G.areaEnteredAt >= BAL.bossAfter && G.areaId !== 'corridor') {
       G.bossSpawned = true;
       spawnBoss(area.boss);
     }
-    // true heaven final boss when arriving late enough
-    if (G.areaId === 'trueheaven' && !G.bossSpawned && t >= BAL.timeline.motherAt) {
-      G.bossSpawned = true;
-      spawnBoss('mother');
+    // 净化祭坛：等待一个安全时机（play 且持有禁器）
+    if (G.revived && G.areaId === 'trueheaven' && !G.purifyOffered && G.player.forbidden.length > 0 && t - G.areaEnteredAt > 4) {
+      G.purifyOffered = true;
+      showPurifyChoice();
     }
   } else if (G.mode === 'chapter') {
-    // 12-minute chapter hunt, boss at 10min
-    if (t >= 600 && !G.bossSpawned && AREAS[G.areaId].boss) { G.bossSpawned = true; spawnBoss(AREAS[G.areaId].boss); }
-    if (t >= 720 && !G.boss) endRun(true, '章节完成');
+    // 6-minute chapter hunt: boss at 5min, ends once it falls
+    if (t >= 300 && !G.bossSpawned && AREAS[G.areaId].boss) { G.bossSpawned = true; spawnBoss(AREAS[G.areaId].boss); }
+    if (t >= 360 && G.bossSpawned && !G.boss) endRun(true, '章节完成');
+    if (t >= 360 && !AREAS[G.areaId].boss) endRun(true, '章节完成');
   } else if (G.mode === 'endless') {
     // 8-minute world layers
     const loop = Math.floor(t / 480);
@@ -87,7 +74,6 @@ export function updateFlow(dt) {
     }
   }
 }
-function orderOf(id) { return ['ashfield', 'cathedral', 'bells', 'corridor', 'hell', 'fakeheaven', 'trueheaven', 'corpsesea'].indexOf(id); }
 
 /* ============== the Reaper (终末钟声) ============== */
 export function startReaper() {
@@ -201,7 +187,6 @@ function tribunalWin() {
   G.revived = true;
   G.phase = 'play';
   G.tribunal = null;
-  G.time = Math.max(G.time, 1275);
   enterArea('hell');
 }
 function tribunalFail() {
@@ -209,12 +194,29 @@ function tribunalFail() {
   endRun(false, '审判失败');
 }
 
-/* ============== boss-kill continuations ============== */
+/* ============== boss-kill continuations ==============
+ * Boss-gated progression: each boss death opens the next chapter. */
+function scheduleNextArea(nextId, banner) {
+  if (banner) toastLines('', banner);
+  const go = () => {
+    if (!G.active || G.ended) return;
+    if (G.phase !== 'play') { after(1.5, go); return; }
+    enterArea(nextId);
+  };
+  after(BAL.areaGap, go);
+}
 export function onBossKilled(id) {
   if (id === 'rahshiel') {
     // 设定：审判获胜=使拉赫希尔屈服而非杀死（见 STORY.rahshiel.win），
     // 故真结局条件"没有杀死拉赫希尔"由 tribunalWon 本身承载。
     return;
+  }
+  if (id === 'anlo') scheduleNextArea('cathedral', '原野的祷文烧尽了。腐香从东面飘来。');
+  if (id === 'mimi') scheduleNextArea('bells', '香炉熄灭。远处传来沉在水底的钟声。');
+  if (id === 'whale') {
+    // the whale's fall arms the death knell — the reaper is coming
+    G.knellAt = G.time + BAL.knellDelay;
+    toastLines('', '鲸尸沉底。七座钟同时静止——\n第八声，不属于这座城。');
   }
   if (id === 'margola') {
     // 地狱新王 choice: sit the iron throne — retries until a safe moment
@@ -227,9 +229,19 @@ export function onBossKilled(id) {
       }));
     };
     after(1.5, tryShow);
+    // advance unless the player took the throne
+    after(BAL.areaGap + 6, () => {
+      if (G.active && !G.ended && G.areaId === 'hell') {
+        const go = () => { if (!G.active || G.ended) return; if (G.phase !== 'play') { after(1.5, go); return; } enterArea('fakeheaven'); };
+        go();
+      }
+    });
   }
   if (id === 'lambking') {
-    setTimeout(() => { if (G.active && !G.ended && G.areaId === 'fakeheaven') maybeLeaveFakeHeaven(); }, 2000);
+    after(BAL.areaGap, () => {
+      const go = () => { if (!G.active || G.ended) return; if (G.phase !== 'play') { after(1.5, go); return; } if (G.areaId === 'fakeheaven') maybeLeaveFakeHeaven(); };
+      go();
+    });
   }
   if (id === 'mother') {
     G.phase = 'finalchoice';
@@ -309,7 +321,7 @@ export function endRun(victory, reason) {
   }
   // 棺中慈悲: died before 12min → mercy stack (pilgrimage runs only)
   const pilgrimish = G.mode === 'pilgrimage' || G.mode === 'daily';
-  if (pilgrimish && !victory && G.time < 720 && !G.executed) META.mercy = Math.min(2, META.mercy + 1);
+  if (pilgrimish && !victory && G.time < 300 && !G.executed) META.mercy = Math.min(2, META.mercy + 1);
   if (pilgrimish && (G.executed || victory)) META.mercy = 0;
   if (META.mercyOff && META.mercy > 0) META.res.ash = Math.round(META.res.ash + R.ash * 0.1);
   // cursed clear stat (vielna unlock)

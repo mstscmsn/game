@@ -9,14 +9,16 @@ export const BAL = {
   },
   caps: { armorReduction: 0.6, crit: 0.75, cdr: 0.65, lifestealPerSec: 0.08, moveBonus: 0.6 },
   armorReduction: a => Math.min(0.6, a / (a + 100)),
-  xpNeed: L => Math.round(8 + 4 * L + 0.12 * L * L),
-  // enemy growth (t = run minutes)
-  enemyHp: (base, zoneMult, diffMult, t) => base * zoneMult * diffMult * (1 + 0.08 * t + 0.006 * t * t),
-  enemyAtk: (base, zoneMult, diffMult, t) => base * zoneMult * diffMult * (1 + 0.05 * t + 0.0025 * t * t),
-  zoneMult: { ashfield: 1.0, cathedral: 1.15, bells: 1.35, tribunal: 1.5, hell: 1.75, fakeheaven: 2.05, trueheaven: 2.5, corpsesea: 2.8 },
-  bossHp: { anlo: 18000, mimi: 90000, whale: 320000, rahshiel: 260000, margola: 1100000, lambking: 2600000, mother: 8500000 },
-  // screen pressure targets (max live enemies) by minute — gentle first two minutes
-  pressure: t => t < 0.5 ? 12 : t < 2 ? 12 + (t - 0.5) * 12 : t < 7 ? 30 + (t - 2) * 15 : t < 14 ? 105 + (t - 7) * 13 : t < 21 ? 200 + (t - 14) * 20 : t < 30 ? 340 : 400,
+  // compressed pacing (~3min chapters): cheaper levels so builds form fast
+  xpNeed: L => Math.round((8 + 4 * L + 0.12 * L * L) * 0.6),
+  // enemy growth (t = run minutes) — coefficients doubled for the ~3min-chapter pacing
+  enemyHp: (base, zoneMult, diffMult, t) => base * zoneMult * diffMult * (1 + 0.17 * t + 0.02 * t * t),
+  enemyAtk: (base, zoneMult, diffMult, t) => base * zoneMult * diffMult * (1 + 0.10 * t + 0.008 * t * t),
+  zoneMult: { ashfield: 1.0, cathedral: 1.2, bells: 1.45, tribunal: 1.6, hell: 1.9, fakeheaven: 2.3, trueheaven: 2.8, corpsesea: 3.1 },
+  // boss HP retuned for boss-gated ~3min chapters (kill target 40-70s)
+  bossHp: { anlo: 6500, mimi: 22000, whale: 60000, rahshiel: 70000, margola: 160000, lambking: 360000, mother: 800000 },
+  // screen pressure targets (max live enemies) by minute — compressed ramp
+  pressure: t => t < 0.5 ? 12 : t < 1.5 ? 12 + (t - 0.5) * 20 : t < 3 ? 32 + (t - 1.5) * 30 : t < 6 ? 77 + (t - 3) * 30 : t < 9 ? 167 + (t - 6) * 30 : t < 13 ? 257 + (t - 9) * 20 : t < 17 ? 340 : 400,
   difficulties: {
     murmur: { name: '默祷', hp: 0.85, atk: 0.85, reward: 0.9 },
     pilgrim: { name: '朝圣', hp: 1.0, atk: 1.0, reward: 1.0 },
@@ -24,8 +26,11 @@ export const BAL = {
     blaspheme: { name: '亵渎', hp: 1.6, atk: 1.3, reward: 1.6 },
   },
   endless: { hpPow: 1.38, atkPow: 1.17, densityAdd: 0.12 },
-  // pilgrimage timeline (seconds)
-  timeline: { cathedral: 420, bells: 840, knell: 1260, hellEnd: 1800, fakeheavenEnd: 2280, motherAt: 2640 },
+  // boss-gated pacing: boss spawns this many seconds after entering an area;
+  // the next area opens only after the boss dies (chapter ≈ 3 minutes)
+  bossAfter: 130,
+  areaGap: 8,               // seconds between boss death and next-area transition
+  knellDelay: 16,           // knell rings this long after the whale falls
   tribunalTime: 75,
   weaponLvMult: [1, 1.18, 1.42, 1.7, 2.0, 2.35, 2.75, 3.25], // lv1..8 damage multiplier
   catalystLvMult: [1, 1.5, 2.0, 2.5, 3.0],                    // lv1..5 effect multiplier

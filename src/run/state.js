@@ -18,7 +18,7 @@ export const G = {
   gemMerge: 0,
   levelupQueue: 0,
   boss: null,
-  knellAt: BAL.timeline.knell, executed: false, revived: false, tribunalTried: false, tribunalWon: false,
+  knellAt: Infinity, executed: false, revived: false, tribunalTried: false, tribunalWon: false,
   reaper: null,              // cutscene state
   tribunal: null,            // fight state
   obedience: 0, obedienceMax: 100, giftsRefused: 0, giftsTaken: 0,
@@ -52,7 +52,7 @@ export function resetG(opts = {}) {
     enemies: [], projs: [], eprojs: [], pickups: [], parts: [], nums: [], zones: [], obstacles: [], props: [],
     kills: 0, eliteKills: 0, bossKills: 0, dmgDealt: 0, dmgTaken: 0, xpGained: 0, gemMerge: 0,
     levelupQueue: 0, boss: null,
-    knellAt: BAL.timeline.knell, executed: false, revived: false, tribunalTried: false, tribunalWon: false,
+    knellAt: Infinity, executed: false, revived: false, tribunalTried: false, tribunalWon: false,
     reaper: null, tribunal: null,
     obedience: 0, giftsRefused: 0, giftsTaken: 0,
     affixes: [], loopN: 0,

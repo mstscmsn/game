@@ -10,21 +10,31 @@ import { fmt, fmtTime, TAU, clamp } from '../core/util.js';
 import { BAL } from '../data/balance.js';
 
 const tintCache = new Map();
-function sprOf(e) {
-  const base = SPRITES.enemies[e.def.sprite];
+function sprOf(e, frameB = false) {
+  const base = (frameB ? SPRITES.enemiesB : SPRITES.enemies)[e.def.sprite];
   if (!base) return null;
   let c = base;
+  const fk = frameB ? 'B' : 'A';
+  if (e.hitT > 0) {                       // hit flash: white silhouette
+    const key = 'hit:' + e.def.sprite + fk;
+    if (!tintCache.has(key)) tintCache.set(key, variant(base, { tint: '#EEEBDD', tintAlpha: 0.85 }));
+    return tintCache.get(key);
+  }
   if (e.def.tint) {
-    const key = e.def.sprite + ':' + e.def.tint;
+    const key = e.def.sprite + ':' + e.def.tint + fk;
     if (!tintCache.has(key)) tintCache.set(key, variant(base, { tint: e.def.tint, tintAlpha: 0.5 }));
     c = tintCache.get(key);
   }
   if (G.blackSunT > 0) {
-    const key = 'w:' + e.def.sprite;
+    const key = 'w:' + e.def.sprite + fk;
     if (!tintCache.has(key)) tintCache.set(key, variant(base, { tint: '#EEEBDD', tintAlpha: 0.95 }));
     c = tintCache.get(key);
   }
   return c;
+}
+function shadow(ctx, x, y, rx, alpha = 0.3) {
+  ctx.fillStyle = `rgba(4,3,5,${alpha})`;
+  ctx.beginPath(); ctx.ellipse(x, y, rx, rx * 0.38, 0, 0, TAU); ctx.fill();
 }
 
 export function render(ctx) {
@@ -46,6 +56,7 @@ export function render(ctx) {
   drawPlayer(ctx, p);
   drawProjectiles(ctx);
   drawParticles(ctx);
+  drawMotes(ctx);
   drawNums(ctx);
   endWorld(ctx);
   drawOverlays(ctx);
@@ -63,6 +74,25 @@ function drawBackground(ctx) {
     for (let y = y0; y < view.camY + view.h / 2 + T; y += T)
       ctx.drawImage(bg.tile, x, y);
   if (bg.tint) { ctx.fillStyle = bg.tint; ctx.fillRect(view.camX - view.w / 2, view.camY - view.h / 2, view.w, view.h); }
+  // 七钟沉城: moving water shimmer
+  if (bg.water) {
+    ctx.strokeStyle = 'rgba(120,160,220,0.07)';
+    ctx.lineWidth = 2;
+    const x0 = view.camX - view.w / 2, y0 = view.camY - view.h / 2;
+    for (let i = 0; i < 5; i++) {
+      const y = y0 + ((i * 137 + G.time * 14) % view.h + view.h) % view.h;
+      ctx.beginPath();
+      ctx.moveTo(x0, y);
+      for (let x = 0; x <= view.w; x += 40) ctx.lineTo(x0 + x, y + Math.sin(x / 60 + G.time * 1.5 + i * 2) * 6);
+      ctx.stroke();
+    }
+  }
+  // 真天堂: breathing walls — slow pulsing darkness
+  if (bg.breathing) {
+    const a = 0.05 + 0.04 * Math.sin(G.time * 0.9);
+    ctx.fillStyle = `rgba(17,21,30,${a})`;
+    ctx.fillRect(view.camX - view.w / 2, view.camY - view.h / 2, view.w, view.h);
+  }
 }
 
 /* ---------------- entities ---------------- */
@@ -128,7 +158,8 @@ function drawZones(ctx) {
 function drawPickups(ctx) {
   for (const k of G.pickups) {
     if (!inView(k.x, k.y, 24)) continue;
-    const bob = Math.sin(G.time * 4 + k.x) * 2;
+    if (k.ph === undefined) k.ph = k.x + k.y;          // stable bob phase
+    const bob = k.pulled ? 0 : Math.sin(G.time * 4 + k.ph) * 2;
     let spr = null;
     if (k.type === 'gem') spr = SPRITES.misc['gem' + k.tier];
     else if (k.type === 'heart') spr = SPRITES.misc.heart;
@@ -151,14 +182,16 @@ function drawPickups(ctx) {
 function drawEnemies(ctx) {
   for (const e of G.enemies) {
     if (e.dead || !inView(e.x, e.y, 60)) continue;
-    const spr = sprOf(e);
+    const moving = Math.abs(e.vx) + Math.abs(e.vy) > 8 && !(e.frozenT > 0);
+    const frameB = moving && (((G.time * 7 + e.id) | 0) % 2 === 0);
+    const spr = sprOf(e, frameB);
     if (!spr) continue;
     const sc = (e.isElite ? 1.35 : 1);
     const w = spr.width * sc, h = spr.height * sc;
     const bob = e.spawning > 0 ? 0 : Math.sin(G.time * 6 + e.id) * 1.5;
+    shadow(ctx, e.x, e.y + h / 2 - 2, e.r * 0.9, e.isElite ? 0.4 : 0.28);
     ctx.save();
     if (e.spawning > 0) ctx.globalAlpha = 1 - e.spawning / 0.4;
-    if (e.hitT > 0) ctx.globalAlpha = 0.6;
     if (e.liftT > 0) ctx.translate(0, -(1 - e.liftT) * 40);
     const flip = e.vx < -1;
     ctx.translate(e.x, e.y + bob);
@@ -187,9 +220,13 @@ function drawBoss(ctx) {
   const spr = SPRITES.bosses[b.sprite];
   if (!spr) return;
   const bob = Math.sin(G.time * 2.4) * 3;
+  const breathe = 1 + Math.sin(G.time * 1.7) * 0.02;
+  shadow(ctx, b.x, b.y + spr.height / 2 - 4, b.r * 1.05, 0.42);
   ctx.save();
   ctx.translate(b.x, b.y + bob);
+  ctx.scale(breathe, 2 - breathe);
   if (b.invulnT > 0) ctx.globalAlpha = 0.5;
+  if (b.hitT > 0) ctx.globalAlpha = 0.75;
   if (G.player.x < b.x) ctx.scale(-1, 1);
   ctx.drawImage(spr, -spr.width / 2, -spr.height / 2);
   ctx.restore();
@@ -219,9 +256,11 @@ function drawReaper(ctx) {
   ctx.restore();
 }
 function drawPlayer(ctx, p) {
-  const spr = SPRITES.chars[p.char.id];
+  const frameB = p.moving && (((G.time * 9) | 0) % 2 === 0);
+  const spr = (frameB ? SPRITES.charsB : SPRITES.chars)[p.char.id];
   if (!spr) return;
   const bob = p.moving ? Math.sin(G.time * 10) * 1.6 : Math.sin(G.time * 2) * 0.8;
+  shadow(ctx, p.x, p.y + spr.height / 2 - 2, 14, 0.35);
   // shield ring
   if (p.shield > 0) {
     ctx.strokeStyle = 'rgba(70,96,138,0.75)';
@@ -233,6 +272,7 @@ function drawPlayer(ctx, p) {
   if (p.invT > 0 && ((G.time * 12) | 0) % 2 === 0) ctx.globalAlpha = 0.5;
   ctx.save();
   ctx.translate(p.x, p.y + bob);
+  if (p.moving) ctx.rotate(p.facing * 0.05);      // lean into movement
   if (p.facing < 0) ctx.scale(-1, 1);
   ctx.drawImage(spr, -spr.width / 2, -spr.height / 2);
   ctx.restore();
@@ -241,6 +281,15 @@ function drawPlayer(ctx, p) {
   for (let i = 0; i < p.coffinLayers; i++) {
     ctx.strokeStyle = 'rgba(216,199,164,0.6)';
     ctx.strokeRect(p.x - 22 - i * 3, p.y - 26 - i * 3, 44 + i * 6, 52 + i * 6);
+  }
+  // adric 开棺 absorb dome
+  if (p.sin.active > 0 && p.char.id === 'adric') {
+    const k = 1 + Math.sin(G.time * 10) * 0.06;
+    ctx.strokeStyle = 'rgba(212,71,79,0.85)';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(p.x, p.y, 40 * k, 0, TAU); ctx.stroke();
+    ctx.fillStyle = 'rgba(142,31,47,0.12)';
+    ctx.beginPath(); ctx.arc(p.x, p.y, 40 * k, 0, TAU); ctx.fill();
   }
   // mina ghosts
   for (let i = 0; i < p.ghosts; i++) {
@@ -324,6 +373,22 @@ function drawProjectiles(ctx) {
 function drawParticles(ctx) {
   for (const pt of G.parts) {
     const k = pt.t / pt.life;
+    if (pt.corpse) {
+      const base = SPRITES.enemies[pt.sprite];
+      if (!base) continue;
+      let c = base;
+      if (pt.tint) {
+        const key = pt.sprite + ':' + pt.tint + 'A';
+        if (tintCache.has(key)) c = tintCache.get(key);
+      }
+      ctx.save();
+      ctx.globalAlpha = (1 - k) * 0.85;
+      ctx.translate(pt.x, pt.y + k * 7);
+      ctx.scale((pt.flip ? -1 : 1) * pt.sc * (1 + k * 0.15), pt.sc * (1 - k * 0.45));
+      ctx.drawImage(c, -c.width / 2, -c.height / 2);
+      ctx.restore();
+      continue;
+    }
     if (pt.ring) {
       ctx.strokeStyle = pt.color;
       ctx.lineWidth = 3 * (1 - k);
@@ -360,6 +425,31 @@ function drawNums(ctx) {
   }
   ctx.globalAlpha = 1;
   ctx.textAlign = 'left';
+}
+
+/* ---------------- ambient drifting motes (stateless) ---------------- */
+const MOTE_STYLE = {
+  ashfield: { col: 'rgba(160,152,140,', n: 22, dir: 1 },
+  cathedral: { col: 'rgba(140,160,110,', n: 16, dir: 1 },
+  bells: { col: 'rgba(120,150,200,', n: 14, dir: -1 },
+  hell: { col: 'rgba(230,140,60,', n: 20, dir: -1 },   // embers rise
+  fakeheaven: { col: 'rgba(255,253,240,', n: 18, dir: 1 },
+  trueheaven: { col: 'rgba(180,170,220,', n: 20, dir: 1 },
+  corpsesea: { col: 'rgba(150,140,180,', n: 16, dir: 1 },
+};
+function drawMotes(ctx) {
+  const st = MOTE_STYLE[G.areaId];
+  if (!st || (window.SETTINGS && window.SETTINGS.simpleFx)) return;
+  const x0 = view.camX - view.w / 2, y0 = view.camY - view.h / 2;
+  for (let i = 0; i < st.n; i++) {
+    const speed = 6 + (i % 5) * 4;
+    const wx = x0 + ((i * 173.3 + G.time * (4 + i % 7) + Math.sin(G.time * 0.7 + i) * 20) % view.w + view.w) % view.w;
+    const wy = y0 + ((i * 89.7 + st.dir * G.time * speed) % view.h + view.h) % view.h;
+    const a = 0.12 + 0.1 * Math.sin(G.time * 2 + i * 1.7);
+    ctx.fillStyle = st.col + Math.max(0.04, a) + ')';
+    const s = 1 + (i % 3);
+    ctx.fillRect(wx, wy, s, s);
+  }
 }
 
 /* ---------------- overlays ---------------- */
@@ -468,7 +558,7 @@ function drawHUD(ctx, p) {
   ctx.textAlign = 'center';
   const knell = G.knellAt + (p.relics.includes('deathwatch') ? 60 : 0);
   const toKnell = knell - G.time;
-  const bleeding = !G.executed && toKnell < 60 && (G.mode === 'pilgrimage' || G.mode === 'daily');
+  const bleeding = !G.executed && isFinite(knell) && toKnell < 60 && (G.mode === 'pilgrimage' || G.mode === 'daily');
   ctx.fillStyle = 'rgba(11,10,12,0.55)';
   ctx.fillRect(w / 2 - 62, py0, 124, 34);
   if (bleeding) {
@@ -481,12 +571,19 @@ function drawHUD(ctx, p) {
   ctx.font = '10px serif';
   ctx.fillStyle = heaven ? '#8a8069' : '#8f8570';
   ctx.fillText(G.area ? G.area.name : '', w / 2, py0 + 30);
-  // knell progress ring
-  if (!G.executed && (G.mode === 'pilgrimage' || G.mode === 'daily')) {
-    ctx.strokeStyle = bleeding ? '#D4474F' : '#B58D3B';
+  // progress ring: knell countdown once armed, else boss-approach for this area
+  if (!G.executed && (G.mode === 'pilgrimage' || G.mode === 'daily' || G.mode === 'chapter')) {
+    let frac = 0, col = '#B58D3B';
+    if (isFinite(knell)) { frac = clamp(1 - toKnell / 60, 0, 1); col = '#D4474F'; }
+    else if (G.boss) { frac = 1; col = '#D4474F'; }
+    else if (G.area && G.area.boss) {
+      const wait = G.mode === 'chapter' ? 300 : BAL.bossAfter;
+      frac = clamp((G.time - G.areaEnteredAt) / wait, 0, 1);
+    }
+    ctx.strokeStyle = col;
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(w / 2 + 74, py0 + 17, 10, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(G.time / knell, 0, 1));
+    ctx.arc(w / 2 + 74, py0 + 17, 10, -Math.PI / 2, -Math.PI / 2 + TAU * frac);
     ctx.stroke();
   }
 
@@ -612,8 +709,15 @@ function drawHUD(ctx, p) {
   const sinFrac = clamp(p.sin.charge / p.sin.need, 0, 1);
   const full = sinFrac >= 1;
   const pulse = full ? 1 + Math.sin(G.time * 7) * 0.06 : 1;
-  ctx.globalAlpha = full ? 0.95 : 0.4;
-  ctx.strokeStyle = full ? '#D4474F' : boneCol;
+  if (G.sinDeniedT > 0) { G.sinDeniedT -= 1 / 60; }
+  ctx.globalAlpha = full ? 0.95 : 0.45;
+  ctx.strokeStyle = G.sinDeniedT > 0 ? '#D4474F' : full ? '#D4474F' : boneCol;
+  if (full) {         // charged: gold halo glow
+    ctx.save();
+    ctx.shadowColor = '#B58D3B'; ctx.shadowBlur = 14;
+    ctx.beginPath(); ctx.arc(bx, by, 38, 0, TAU); ctx.stroke();
+    ctx.restore();
+  }
   ctx.lineWidth = 3;
   ctx.beginPath(); ctx.arc(bx, by, 36 * pulse, 0, TAU); ctx.stroke();
   ctx.strokeStyle = '#B58D3B'; ctx.lineWidth = 3;

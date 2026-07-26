@@ -26,7 +26,7 @@ await fresh('chapter', 'hell');
 const marg = await page.evaluate(async () => {
   const G = window.__G;
   const m = await import('./game.js').catch(() => null);
-  G.time = 600; // trigger boss via chapter rule needs 600
+  G.time = 300;
   await new Promise(r => setTimeout(r, 700));
   const log = [];
   for (let i = 0; i < 30; i++) {
@@ -46,7 +46,7 @@ console.log('margola:', JSON.stringify(marg));
 await fresh('chapter', 'fakeheaven');
 const lamb = await page.evaluate(async () => {
   const G = window.__G;
-  G.time = 600;
+  G.time = 300;
   await new Promise(r => setTimeout(r, 700));
   const phases = new Set();
   for (let i = 0; i < 25 && G.boss; i++) {
@@ -62,15 +62,11 @@ console.log('lambking:', JSON.stringify(lamb));
 await fresh('pilgrimage', 'ashfield');
 const wd = await page.evaluate(async () => {
   const G = window.__G;
-  G.executed = true; G.revived = true; G.time = 1900;
-  const m = await import('./game.js').catch(() => null);
-  // force enter fakeheaven via flow
-  window.__G.obedience = 0;
-  const flowEnter = () => { G.areaId = 'fakeheaven'; };
+  G.executed = true; G.revived = true;
+  window.__enterArea('fakeheaven');
   return new Promise(res => {
     const iv = setInterval(() => {
-      if (G.areaId !== 'fakeheaven' && G.phase === 'play') { G.time = Math.max(G.time, 1900); }
-      if (G.areaId === 'fakeheaven') { G.obedience = 99.9; }
+      G.obedience = Math.max(G.obedience, 99.5);
       const fs = document.querySelector('.fullstory');
       if (fs) fs.click();
       if (G.ended || !G.active) { clearInterval(iv); res({ ended: G.ended, ending: G.endingId }); }
@@ -86,13 +82,12 @@ await page.evaluate(() => { document.getElementById('ui-root').innerHTML = ''; }
 await fresh('pilgrimage', 'ashfield');
 const hk = await page.evaluate(async () => {
   const G = window.__G;
-  G.executed = true; G.revived = true; G.time = 1700;
-  const flow = null;
-  // enter hell then kill margola
+  G.executed = true; G.revived = true;
+  window.__enterArea('hell');
   return new Promise(res => {
     let sat = false;
     const iv = setInterval(() => {
-      if (G.areaId !== 'hell' && G.phase === 'play' && !G.ended) G.time = Math.max(G.time, 1740);
+      if (G.phase === 'play' && !G.boss && !G.bossSpawned) G.time = G.areaEnteredAt + 131;
       if (G.boss && G.boss.id === 'margola') { for (const w of G.boss.wombs) if (!w.dead) w.hp = 0; G.boss.hp -= G.boss.maxHp * 0.2; }
       const sit = document.querySelector('#throne-ui .btn:not(.primary)');
       if (sit && !sat) { sat = true; sit.click(); }
@@ -116,7 +111,7 @@ const el = await page.evaluate(async () => {
   const card = document.querySelector('#levelup-ui .upcard');
   if (card) card.click();
   await new Promise(r => setTimeout(r, 400));
-  G.time = 959;
+  G.time = 961;
   await new Promise(r => setTimeout(r, 1500));
   const card2 = document.querySelector('#levelup-ui .upcard');
   if (card2) card2.click();

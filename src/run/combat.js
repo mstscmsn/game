@@ -173,6 +173,10 @@ export function killEnemy(e, opts = {}) {
   G.kills++;
   sfx.kill();
   burst(e.x, e.y, e.isElite ? 'rgba(212,71,79,0.8)' : 'rgba(216,199,164,0.55)', e.isElite ? 12 : 5, 80, 0.4, e.isElite ? 4 : 3);
+  // corpse dissolve animation
+  if (G.parts.length < 380) {
+    G.parts.push({ corpse: true, sprite: e.def.sprite, tint: e.def.tint, x: e.x, y: e.y, flip: e.vx < 0, sc: e.isElite ? 1.35 : 1, t: 0, life: 0.55 });
+  }
   // ledger relic
   if (p.relics.includes('sinledger')) {
     G.ledgerKills = (G.ledgerKills || 0) + 1;
@@ -217,7 +221,7 @@ export function killEnemy(e, opts = {}) {
   }
   if (e.isBoss) { /* handled by bosses.js */ }
   // sin charge
-  const gain = (e.isElite ? 6 : 1) * S().sinRate;
+  const gain = (e.isElite ? 8 : 2) * S().sinRate;
   if (p.sin.charge < p.sin.need) {
     p.sin.charge = Math.min(p.sin.need, p.sin.charge + gain);
     if (p.sin.charge >= p.sin.need) sfx.sinReady();

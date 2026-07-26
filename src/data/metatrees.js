@@ -45,5 +45,8 @@ export const TREES = {
     ],
   },
 };
-export const ALL_NODES = Object.values(TREES).flatMap(t => t.nodes.map(n => ({ ...n, tree: t.name, res: t.res })));
+// attach the tree's resource type to every node so UI / purchase logic can
+// read node.res directly (screens iterate tree.nodes, not ALL_NODES)
+for (const t of Object.values(TREES)) for (const n of t.nodes) { n.res = t.res; n.tree = t.name; }
+export const ALL_NODES = Object.values(TREES).flatMap(t => t.nodes);
 export const NODE_BY_ID = Object.fromEntries(ALL_NODES.map(n => [n.id, n]));

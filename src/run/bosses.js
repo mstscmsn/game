@@ -17,7 +17,7 @@ export function spawnBoss(id) {
   if (id === 'rahshiel') {
     // tiered by artifact count, not live DPS (docs §12.5)
     const arts = p.weapons.filter(w => w.evolved).length;
-    hp = (140000 + arts * 70000) * G.diff.hp;
+    hp = (BAL.bossHp.rahshiel + arts * 25000) * G.diff.hp;
   }
   if (G.affixes.includes('hollowsaint')) hp *= 0.8;
   const boss = {
@@ -43,6 +43,7 @@ export function updateBoss(dt) {
   const p = G.player;
   b.t += dt;
   if (b.invulnT > 0) b.invulnT -= dt;
+  if (b.hitT > 0) b.hitT -= dt;
   tickStatusesFor(b, dt);          // 流血/灼烧/腐烂等状态对 Boss 正常结算
   if (b.dead) return;
   if (G.timeStopT > 0) return;

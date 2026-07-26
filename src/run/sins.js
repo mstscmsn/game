@@ -6,8 +6,14 @@ import { addShake, addFlash, hitStop } from '../engine.js';
 import { META } from '../meta/save.js';
 
 export function castSin(p) {
-  if (p.sin.charge < p.sin.need || p.sin.active > 0) return false;
   if (G.phase !== 'play' && G.phase !== 'tribunal') return false;
+  if (p.sin.charge < p.sin.need || p.sin.active > 0) {
+    // clear feedback instead of silent failure
+    num(p.x, p.y - 26, `罪能 ${Math.floor(p.sin.charge)}/${p.sin.need}`, 'warn');
+    G.sinDeniedT = 0.35;
+    sfx.select();
+    return false;
+  }
   p.sin.charge = 0;
   sfx.sinCast();
   addShake(5);

@@ -634,15 +634,65 @@ const MISC_ROWS = {
   hellgate: ['.r.r.r.', 'rkrkrkr', '.krkrk.', 'rkrkrkr', '.r.r.r.'],
 };
 
+/* ============================= refinement passes ============================= */
+// pseudo-lighting: pixels open to the sky get a highlight, pixels above a
+// transparent gap get a shaded bottom edge — reads as carved volume at 96px.
+export function refineSprite(src, scale = 3) {
+  const w = src.width, h = src.height;
+  const ctx = src.getContext('2d');
+  const img = ctx.getImageData(0, 0, w, h);
+  const d = img.data;
+  const idx = (x, y) => (y * w + x) * 4;
+  const opaque = (x, y) => x >= 0 && y >= 0 && x < w && y < h && d[idx(x, y) + 3] > 0;
+  const out = ctx.createImageData(w, h);
+  out.data.set(d);
+  const o = out.data;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = idx(x, y);
+    if (d[i + 3] === 0) continue;
+    const litTop = !opaque(x, y - scale);
+    const shadeBot = !opaque(x, y + scale);
+    if (litTop && (y % scale) < 1) { // only the top canvas-row of each pixel cell
+      o[i] = Math.min(255, d[i] * 1.35 + 14);
+      o[i + 1] = Math.min(255, d[i + 1] * 1.35 + 14);
+      o[i + 2] = Math.min(255, d[i + 2] * 1.3 + 10);
+    } else if (shadeBot && (y % scale) === scale - 1) {
+      o[i] = d[i] * 0.7; o[i + 1] = d[i + 1] * 0.7; o[i + 2] = d[i + 2] * 0.72;
+    }
+  }
+  ctx.putImageData(out, 0, 0);
+  return src;
+}
+
+// 2-frame walk cycle: frame B lifts the left leg by one pixel-cell
+export function walkFrame(src, scale = 3) {
+  const c = document.createElement('canvas');
+  c.width = src.width; c.height = src.height;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const legH = scale * 3, legY = Math.max(0, src.height - legH);
+  const half = Math.floor(src.width / 2);
+  ctx.drawImage(src, 0, 0, src.width, legY, 0, 0, src.width, legY);
+  ctx.drawImage(src, 0, legY, half, legH, 0, legY - scale, half, legH);
+  ctx.drawImage(src, half, legY, src.width - half, legH, half, legY, src.width - half, legH);
+  return c;
+}
+
 /* ============================= API ============================= */
-export const SPRITES = { chars: {}, enemies: {}, bosses: {}, misc: {} };
+export const SPRITES = { chars: {}, charsB: {}, enemies: {}, enemiesB: {}, bosses: {}, misc: {} };
 
 export function buildSprites() {
-  for (const [id, rows] of Object.entries(CHAR_ROWS)) SPRITES.chars[id] = px(rows, { scale: 3 });
-  for (const [id, rows] of Object.entries(ENEMY_ROWS)) SPRITES.enemies[id] = px(rows, { scale: 3 });
-  for (const [id, rows] of Object.entries(BOSS_ROWS)) SPRITES.bosses[id] = px(rows, { scale: 4 });
+  for (const [id, rows] of Object.entries(CHAR_ROWS)) {
+    SPRITES.chars[id] = refineSprite(px(rows, { scale: 3 }), 3);
+    SPRITES.charsB[id] = walkFrame(SPRITES.chars[id], 3);
+  }
+  for (const [id, rows] of Object.entries(ENEMY_ROWS)) {
+    SPRITES.enemies[id] = refineSprite(px(rows, { scale: 3 }), 3);
+    SPRITES.enemiesB[id] = walkFrame(SPRITES.enemies[id], 3);
+  }
+  for (const [id, rows] of Object.entries(BOSS_ROWS)) SPRITES.bosses[id] = refineSprite(px(rows, { scale: 4 }), 4);
   for (const [id, rows] of Object.entries(MISC_ROWS)) SPRITES.misc[id] = px(rows, { scale: 3 });
-  // white silhouettes for the black-sun forbidden weapon & reaper scene
+  // white silhouettes for the black-sun forbidden weapon & reaper scene + hit flash
   SPRITES.whiteOut = {};
   for (const [id, c] of Object.entries(SPRITES.enemies)) SPRITES.whiteOut[id] = variant(c, { tint: '#EEEBDD', tintAlpha: 1 });
 }

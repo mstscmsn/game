@@ -25,8 +25,14 @@ export function buildBackgrounds() {
   // 灰葬原野 — ash-grey soil, dead wheat, bones
   AREA_BG.ashfield = {
     tile: mk((ctx, rng) => {
-      ctx.fillStyle = '#141114'; ctx.fillRect(0, 0, T, T);
-      speckle(ctx, rng, 400, ['#1a161a', '#0e0c0f', '#1e1a1c'], 2, 5);
+      ctx.fillStyle = '#191519'; ctx.fillRect(0, 0, T, T);
+      speckle(ctx, rng, 420, ['#211c21', '#121014', '#262027', '#1c1720'], 2, 5);
+      // faint path stones
+      for (let i = 0; i < 9; i++) {
+        ctx.fillStyle = 'rgba(70,64,58,0.28)';
+        const x = rng() * T, y = rng() * T;
+        ctx.fillRect(x, y, 10 + rng() * 8, 7 + rng() * 6);
+      }
       // dead wheat tufts
       for (let i = 0; i < 26; i++) {
         const x = rng() * T, y = rng() * T;
@@ -43,7 +49,7 @@ export function buildBackgrounds() {
         const x = rng() * T, y = rng() * T;
         ctx.fillRect(x, y, 8 + rng() * 10, 2);
       }
-    }, 11), fog: 'rgba(90,85,90,0.05)', vignette: 0.55, tint: null,
+    }, 11), fog: 'rgba(90,85,90,0.05)', vignette: 0.48, tint: null,
   };
   // 腐香大教堂 — cracked cathedral tiles
   AREA_BG.cathedral = {

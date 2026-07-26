@@ -276,10 +276,15 @@ export function updatePickups(dt) {
     const d2 = (p.x - k.x) ** 2 + (p.y - k.y) ** 2;
     const magnet = k.type === 'gem' && (d2 < pr * pr || auto);
     if (magnet || k.pulled) {
-      k.pulled = true;
+      // pull speed ramps from pull START (not pickup age) and snaps home when
+      // a single step would overshoot — old gems used to orbit & jitter forever
+      if (!k.pulled) { k.pulled = true; k.pt = 0; }
+      k.pt += dt;
       const d = Math.sqrt(d2) || 1;
-      const sp = 300 + k.t * 500;
-      k.x += (p.x - k.x) / d * sp * dt; k.y += (p.y - k.y) / d * sp * dt;
+      const sp = Math.min(900, 300 + k.pt * 700);
+      const step = sp * dt;
+      if (step >= d) { k.x = p.x; k.y = p.y; }
+      else { k.x += (p.x - k.x) / d * step; k.y += (p.y - k.y) / d * step; }
     }
     if (d2 < (p.r + 14) ** 2) {
       // chests/gifts stay on the floor during the tribunal — no UI interrupts there
