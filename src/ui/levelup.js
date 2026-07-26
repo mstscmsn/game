@@ -50,13 +50,18 @@ function candidates() {
       out.push({ kind: 'catalyst', id: def.id, up: false, w: (ownsWeapon ? 10 * 3.5 : 10) * luck });
     }
   }
-  // generic boosts (always some filler)
+  // generic boosts (always some filler) — with stack count on the card
   const boosts = [
     ['hp', '肉身还愿', '最大生命+10%'], ['dmg', '磨刃', '全伤害+6%'], ['area', '教区扩张', '范围+5%'],
     ['cdr', '快钟摆', '冷却缩减+4%'], ['speed', '疾行', '移动速度+4%'], ['magnet', '引魂', '拾取范围+15%'],
     ['crit', '狠辣', '暴击率+5%'], ['armor', '铁片', '护甲+3'],
   ];
-  for (const [id, nm, ds] of boosts) out.push({ kind: 'boost', id, nm, ds, w: 4 });
+  for (const [id, nm, ds] of boosts) {
+    const st = p.boosts[id] || 0;
+    out.push({ kind: 'boost', id, nm, ds: ds + (st ? `（已持 ${st} 层）` : ''), w: 4 });
+  }
+  // the rare exciting one: +1 projectile (hard-capped at 2 picks)
+  if ((p.boosts.amount || 0) < 2) out.push({ kind: 'boost', id: 'amount', nm: '增殖圣痕', ds: '所有武器投射物数量 +1（稀有）', w: 1.2, rare: true });
   return out;
 }
 
@@ -187,14 +192,19 @@ export function openChest() {
   }
   const better = p.relics.includes('invitation');
   if (p.relics.length < maxRelics(p) && (better || G.rng() < 0.6 + p.S.luck * 0.3)) {
-    const avail = RELICS.filter(r => !p.relics.includes(r.id) && (!r.cursed || G.rng() < 0.4));
-    if (avail.length) {
-      const r = avail[(G.rng() * avail.length) | 0];
-      p.relics.push(r.id);
-      if (r.cursed) G.rareTaken = (G.rareTaken || 0) + 1;
-      if (r.id === 'hourglass') G.timeScale = Math.max(G.timeScale, 1.08);
-      recomputeStats(p);
-      toastCeremony('遗物', `${r.name} — ${r.desc}`, icon(r.icon), r.cursed ? 'q-cursed' : 'q-rare');
+    // relics are a CHOICE now: two plain offerings and one cursed bargain
+    const plain = RELICS.filter(r => !p.relics.includes(r.id) && !r.cursed);
+    const cursed = RELICS.filter(r => !p.relics.includes(r.id) && r.cursed);
+    const picks = [];
+    while (picks.length < 2 && plain.length) picks.push(plain.splice((G.rng() * plain.length) | 0, 1)[0]);
+    if (cursed.length) picks.push(cursed[(G.rng() * cursed.length) | 0]);
+    else while (picks.length < 3 && plain.length) picks.push(plain.splice((G.rng() * plain.length) | 0, 1)[0]);
+    if (picks.length) {
+      G.phase = 'levelup';
+      renderCards('宝箱开启 — 择一遗物', picks.map(r => ({ kind: 'relic', id: r.id })), {
+        showSkip: false,
+        onPick: (c) => { applyCard(c); closeCards(); },
+      });
       return;
     }
   }

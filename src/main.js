@@ -11,10 +11,10 @@ import { updateSin } from './run/sins.js';
 import { updateWeapons, updateProjectiles } from './run/weapons_impl.js';
 import { updateSpawner, updateEnemies, updateEnemyProjs, updateZones, updatePickups } from './run/spawner.js';
 import { updateBoss } from './run/bosses.js';
-import { updateFlow, updateReaper, enterArea, endRun } from './run/flow.js';
+import { updateFlow, updateReaper, enterArea, endRun, startTribunal } from './run/flow.js';
 import { render } from './run/render.js';
 import { openLevelUp, openStartBless } from './ui/levelup.js';
-import { mainMenu, bindStart, pauseMenu, applySettings } from './ui/screens.js';
+import { mainMenu, bindStart, pauseMenu, applySettings, codexScreen } from './ui/screens.js';
 import { makeRng } from './core/util.js';
 
 function boot() {
@@ -35,6 +35,9 @@ function boot() {
   window.__startRun = startRun;
   window.__INPUT = input;
   window.__enterArea = enterArea;
+  window.__TRIBUNAL = startTribunal;
+  window.__ENDRUN = endRun;
+  window.__CODEX = codexScreen;
 }
 
 function startRun(opts) {

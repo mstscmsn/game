@@ -124,6 +124,9 @@ export function recomputeStats(p) {
   if (b.magnet) S.pickup *= (1 + 0.15 * b.magnet);
   if (b.crit) S.crit += 0.05 * b.crit;
   if (b.armor) S.armor += 3 * b.armor;
+  if (b.amount) S.amount += b.amount;
+  // mina trait: 初始召唤数量+1 (docs §7)
+  if (c.id === 'mina') S.amount += 1;
   // permanent in-run penalties (tearless hp loss, umbilical/hellfruit curse)
   S.maxHp *= (p.permMaxHpMult || 1);
   S.curse = (S.curse || 0) + (p.permCurse || 0);
@@ -237,6 +240,8 @@ export function playerHurt(p, amount, opts = {}) {
     p.hurtInvT = p.S.hurtInv;
     if (p.relics && p.relics.includes('tearless')) { p.tearlessT = 2; p.permMaxHpMult *= 0.99; recomputeStats(p); }
     sfx.hurt(); addShake(4); addFlash('#8E1F2F', 0.25);
+    hitStop(0.07);
+    if (navigator.vibrate && (window.SETTINGS?.shake ?? 1) > 0) navigator.vibrate(40);
     // adric: coffin armor thresholds
     if (p.char.id === 'adric') {
       const lost = 1 - p.hp / p.S.maxHp;

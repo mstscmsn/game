@@ -34,6 +34,11 @@ async function driveTick() {
     // click through any UI
     const sels = ['#levelup-ui .upcard', '#ceremony-ui .skipbar', '.cards-wrap .skipbar', '#throne-ui .btn.primary'];
     for (const s of sels) { const el = document.querySelector(s); if (el) { el.click(); break; } }
+    // story-phase modals (saint confession / gift choice / purify): take the primary path
+    if (G.phase === 'story') {
+      const pc = document.querySelector('.cards-wrap .btn.primary') || document.querySelector('.cards-wrap .btn');
+      if (pc) pc.click();
+    }
     // death choice → challenge
     const wing = document.querySelector('.death-btn.wing');
     if (wing) wing.click();

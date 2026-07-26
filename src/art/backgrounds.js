@@ -6,6 +6,110 @@ export const AREA_BG = {}; // id -> {tile, deco:[canvas], fog, vignette, tint}
 
 const T = 384;
 
+// large silhouette props (§18: 大块黑色剪影) drawn once, scattered by render
+function silhouette(w, h, draw) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#050405';
+  ctx.strokeStyle = 'rgba(216,199,164,0.14)';
+  ctx.lineWidth = 2;
+  draw(ctx, w, h);
+  return c;
+}
+function buildDecos() {
+  const D = {};
+  D.ashfield = [
+    silhouette(96, 150, (x, w, h) => { // dead tree
+      x.beginPath(); x.moveTo(w * 0.45, h); x.lineTo(w * 0.5, h * 0.35); x.lineTo(w * 0.2, h * 0.1);
+      x.moveTo(w * 0.5, h * 0.5); x.lineTo(w * 0.85, h * 0.2); x.moveTo(w * 0.48, h * 0.7); x.lineTo(w * 0.15, h * 0.55);
+      x.lineWidth = 9; x.strokeStyle = '#050405'; x.stroke();
+      x.lineWidth = 1.5; x.strokeStyle = 'rgba(216,199,164,0.12)'; x.stroke();
+    }),
+    silhouette(70, 100, (x, w, h) => { // leaning cross
+      x.save(); x.translate(w / 2, h * 0.9); x.rotate(-0.12);
+      x.fillRect(-6, -h * 0.85, 12, h * 0.85);
+      x.fillRect(-26, -h * 0.62, 52, 11);
+      x.restore(); x.strokeRect(w / 2 - 7, h * 0.08, 13, h * 0.8);
+    }),
+  ];
+  D.cathedral = [
+    silhouette(90, 160, (x, w, h) => { // broken column
+      x.fillRect(w * 0.3, h * 0.15, w * 0.4, h * 0.85);
+      x.fillRect(w * 0.2, h * 0.1, w * 0.6, 14);
+      x.beginPath(); x.moveTo(w * 0.3, h * 0.15); x.lineTo(w * 0.5, 0); x.lineTo(w * 0.7, h * 0.15); x.fill();
+      x.strokeRect(w * 0.3, h * 0.15, w * 0.4, h * 0.83);
+    }),
+    silhouette(70, 110, (x, w, h) => { // hanging censer
+      x.beginPath(); x.moveTo(w / 2, 0); x.lineTo(w / 2, h * 0.4); x.lineWidth = 3; x.strokeStyle = '#050405'; x.stroke();
+      x.beginPath(); x.arc(w / 2, h * 0.62, w * 0.3, 0, 6.29); x.fill();
+      x.lineWidth = 1.5; x.strokeStyle = 'rgba(181,141,59,0.25)';
+      x.beginPath(); x.arc(w / 2, h * 0.62, w * 0.3, 0, 6.29); x.stroke();
+    }),
+  ];
+  D.bells = [
+    silhouette(110, 190, (x, w, h) => { // drowned bell tower
+      x.fillRect(w * 0.28, h * 0.2, w * 0.44, h * 0.8);
+      x.beginPath(); x.moveTo(w * 0.22, h * 0.2); x.lineTo(w / 2, 0); x.lineTo(w * 0.78, h * 0.2); x.fill();
+      x.strokeRect(w * 0.28, h * 0.2, w * 0.44, h * 0.78);
+      x.fillStyle = '#B58D3B'; x.globalAlpha = 0.35;
+      x.fillRect(w * 0.42, h * 0.3, w * 0.16, h * 0.12);
+      x.globalAlpha = 1;
+    }),
+    silhouette(90, 60, (x, w, h) => { // floating coffin
+      x.save(); x.translate(w / 2, h / 2); x.rotate(0.1);
+      x.fillRect(-w * 0.4, -10, w * 0.8, 20);
+      x.strokeRect(-w * 0.4, -10, w * 0.8, 20);
+      x.restore();
+    }),
+  ];
+  D.hell = [
+    silhouette(100, 150, (x, w, h) => { // furnace tree
+      x.fillRect(w * 0.4, h * 0.3, w * 0.2, h * 0.7);
+      x.beginPath(); x.arc(w / 2, h * 0.28, w * 0.3, 0, 6.29); x.fill();
+      x.fillStyle = 'rgba(212,71,79,0.5)';
+      x.beginPath(); x.arc(w / 2, h * 0.28, w * 0.12, 0, 6.29); x.fill();
+    }),
+    silhouette(80, 110, (x, w, h) => { // iron flower stalk
+      x.beginPath(); x.moveTo(w / 2, h); x.quadraticCurveTo(w * 0.3, h * 0.5, w / 2, h * 0.25);
+      x.lineWidth = 6; x.strokeStyle = '#050405'; x.stroke();
+      for (let i = 0; i < 6; i++) {
+        const a = i / 6 * 6.283;
+        x.beginPath(); x.moveTo(w / 2, h * 0.22);
+        x.lineTo(w / 2 + Math.cos(a) * 22, h * 0.22 + Math.sin(a) * 22);
+        x.lineWidth = 4; x.stroke();
+      }
+    }),
+  ];
+  D.fakeheaven = [
+    silhouette(110, 130, (x, w, h) => { // white chapel (bright area: pale)
+      x.fillStyle = 'rgba(238,235,221,0.85)';
+      x.fillRect(w * 0.25, h * 0.35, w * 0.5, h * 0.6);
+      x.beginPath(); x.moveTo(w * 0.2, h * 0.35); x.lineTo(w / 2, h * 0.08); x.lineTo(w * 0.8, h * 0.35); x.fill();
+      x.strokeStyle = 'rgba(90,85,70,0.4)';
+      x.strokeRect(w * 0.25, h * 0.35, w * 0.5, h * 0.58);
+      x.beginPath(); x.moveTo(w / 2, h * 0.02); x.lineTo(w / 2, h * 0.1); x.moveTo(w * 0.46, h * 0.05); x.lineTo(w * 0.54, h * 0.05); x.stroke();
+    }),
+  ];
+  D.trueheaven = [
+    silhouette(120, 180, (x, w, h) => { // rib arch
+      x.lineWidth = 10; x.strokeStyle = '#050405';
+      x.beginPath(); x.moveTo(w * 0.15, h); x.quadraticCurveTo(w * 0.2, h * 0.1, w / 2, h * 0.08);
+      x.quadraticCurveTo(w * 0.8, h * 0.1, w * 0.85, h); x.stroke();
+      x.lineWidth = 1.5; x.strokeStyle = 'rgba(124,95,138,0.3)'; x.stroke();
+    }),
+  ];
+  D.corpsesea = [
+    silhouette(130, 100, (x, w, h) => { // half-sunken dead sun
+      x.beginPath(); x.arc(w / 2, h, w * 0.4, Math.PI, 0); x.fill();
+      x.strokeStyle = 'rgba(142,31,47,0.35)'; x.lineWidth = 3;
+      x.beginPath(); x.arc(w / 2, h, w * 0.4, Math.PI, 0); x.stroke();
+    }),
+  ];
+  return D;
+}
+export let DECOS = {};
+
 function mk(fn, seed) {
   const c = document.createElement('canvas');
   c.width = T; c.height = T;
@@ -22,6 +126,7 @@ function speckle(ctx, rng, n, colors, s0 = 1, s1 = 3) {
 }
 
 export function buildBackgrounds() {
+  DECOS = buildDecos();
   // 灰葬原野 — ash-grey soil, dead wheat, bones
   AREA_BG.ashfield = {
     tile: mk((ctx, rng) => {

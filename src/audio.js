@@ -55,6 +55,30 @@ function noise(a, d, peak = 0.4, freq = 1200, q = 1) {
   src.start(t0); src.stop(t0 + a + d + 0.05);
 }
 
+// per-weapon fire voices (throttled per id) — each weapon gets a signature
+const FIRE_VOICE = {
+  musket: () => { noise(0.003, 0.07, 0.26, 650); tone(85, 'square', 0.002, 0.06, 0.18, 50); },
+  spear: () => noise(0.002, 0.05, 0.14, 1600, 2),
+  bow: () => { tone(220, 'triangle', 0.002, 0.05, 0.1, 160); noise(0.002, 0.04, 0.1, 2000, 3); },
+  raven: () => noise(0.004, 0.09, 0.12, 500, 1.5),
+  dagger: () => noise(0.002, 0.03, 0.1, 2600, 3),
+  harp: () => tone(330, 'triangle', 0.004, 0.14, 0.12, 262),
+  wheel: () => tone(90, 'sawtooth', 0.004, 0.12, 0.12, 60),
+  wingblade: () => noise(0.002, 0.06, 0.12, 1200, 2),
+  scripture: () => tone(520, 'sine', 0.003, 0.06, 0.08, 620),
+  lantern: () => tone(392, 'sine', 0.005, 0.12, 0.08, 330),
+  chain: () => { noise(0.002, 0.05, 0.16, 900, 2); tone(140, 'square', 0.002, 0.04, 0.08, 90); },
+};
+const fireLast = {};
+export function fireSound(id) {
+  if (!AC) return;
+  const now = performance.now();
+  if (now - (fireLast[id] || 0) < 90) return;
+  fireLast[id] = now;
+  const v = FIRE_VOICE[id];
+  if (v) v();
+}
+
 // merged kill sfx: at most every 90ms
 let lastKill = 0, killCount = 0;
 export const sfx = {
@@ -64,8 +88,11 @@ export const sfx = {
     killCount++;
     if (now - lastKill < 90) return;
     lastKill = now;
-    const p = Math.min(0.5, 0.22 + killCount * 0.02); killCount = 0;
-    noise(0.004, 0.09, p, 900 + Math.random() * 700, 0.8);
+    // denser kill-streaks ring lower and heavier — the mowing accelerates audibly
+    const p = Math.min(0.5, 0.22 + killCount * 0.02);
+    const f = 900 - Math.min(400, killCount * 60) + Math.random() * 300;
+    killCount = 0;
+    noise(0.004, 0.09, p, f, 0.8);
   },
   eliteKill() { noise(0.005, 0.3, 0.6, 300, 1.2); tone(70, 'sine', 0.005, 0.35, 0.7, 40); },
   hurt() { tone(160, 'square', 0.004, 0.12, 0.35, 90); noise(0.004, 0.08, 0.25, 500); },

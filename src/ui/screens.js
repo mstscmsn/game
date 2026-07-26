@@ -11,7 +11,7 @@ import { META, saveMeta, nodeRank, canBuyNode, buyNode, isCharUnlocked, wipeMeta
 import { icon, iconEvolved, iconForbidden } from '../art/icons.js';
 import { makePortrait, SPRITES } from '../art/sprites.js';
 import { sfx, playMusic, updateVolumes } from '../audio.js';
-import { G } from '../run/state.js';
+import { G, after, num } from '../run/state.js';
 import { fmt, fmtTime } from '../core/util.js';
 
 const ui = () => document.getElementById('ui-root');
@@ -36,6 +36,37 @@ function screen(cls = '') {
   ui().appendChild(s);
   return s;
 }
+// black-sun emblem canvas for menu headers (procedural, cached)
+let emblemC = null;
+function blackSunEmblem() {
+  if (!emblemC) {
+    emblemC = document.createElement('canvas');
+    emblemC.width = 320; emblemC.height = 240;
+    const x = emblemC.getContext('2d');
+    const cx = 160, cy = 120;
+    x.strokeStyle = 'rgba(216,199,164,0.18)'; x.lineWidth = 2;
+    x.beginPath(); x.arc(cx, cy, 104, 0, 6.29); x.stroke();
+    x.strokeStyle = '#B58D3B'; x.lineWidth = 3;
+    for (let i = 0; i < 16; i++) {
+      const a = i / 16 * 6.283;
+      x.beginPath();
+      x.moveTo(cx + Math.cos(a) * 74, cy + Math.sin(a) * 74);
+      x.lineTo(cx + Math.cos(a) * (i % 2 ? 96 : 86), cy + Math.sin(a) * (i % 2 ? 96 : 86));
+      x.stroke();
+    }
+    x.fillStyle = '#050405';
+    x.beginPath(); x.arc(cx, cy, 62, 0, 6.29); x.fill();
+    x.strokeStyle = '#D4474F'; x.lineWidth = 4;
+    x.beginPath(); x.arc(cx, cy, 65, 0, 6.29); x.stroke();
+    x.strokeStyle = 'rgba(142,31,47,0.55)'; x.lineWidth = 9;
+    x.beginPath(); x.arc(cx, cy, 73, 0, 6.29); x.stroke();
+    x.strokeStyle = '#8E1F2F'; x.lineWidth = 3;
+    x.beginPath(); x.moveTo(cx - 30, cy); x.quadraticCurveTo(cx, cy + 18, cx + 30, cy); x.stroke();
+  }
+  const c = cloneCanvas(emblemC);
+  c.style.cssText = 'width:min(64vw,250px);height:auto;display:block;margin:2px auto 0;';
+  return c;
+}
 function cloneCanvas(c) {
   const n = document.createElement('canvas');
   n.width = c.width; n.height = c.height;
@@ -47,7 +78,8 @@ function cloneCanvas(c) {
 export function mainMenu() {
   document.body.classList.remove('heaven-skin');
   playMusic('hub');
-  const s = screen();
+  const s = screen('center');
+  s.appendChild(blackSunEmblem());
   s.appendChild(el('div', 'sc-title', '逆圣'));
   s.appendChild(el('div', 'sc-sub', 'ANATHEMA · 黑日遗嘱'));
   s.appendChild(el('div', 'divider'));
@@ -58,7 +90,7 @@ export function mainMenu() {
   if (META.runs > 0) s.appendChild(btn('快速出发', () => charSelect()));
   s.appendChild(btn('设置', () => settingsScreen(mainMenu)));
   s.appendChild(btn('关于', () => aboutScreen()));
-  const tip = el('div', 'sc-note', `<br>${STORY.tips[(Math.random() * STORY.tips.length) | 0]}`);
+  const tip = el('div', 'sc-note', `<br>${STORY.whispers[(Math.random() * STORY.whispers.length) | 0]}`);
   tip.style.opacity = '0.6';
   s.appendChild(tip);
 }
@@ -67,7 +99,7 @@ function aboutScreen() {
   const s = screen();
   s.appendChild(el('div', 'sc-title', '关于'));
   s.appendChild(el('div', 'divider'));
-  s.appendChild(el('div', 'sc-note', `逆圣：黑日遗嘱 v1.0<br>ANATHEMA — TESTAMENT OF THE BLACK SUN<br><br>暗黑哥特 Roguelite 幸存者游戏<br>全部美术·音乐·剧情为程序化原创生成<br><br>操作：左摇杆移动 / 右侧闪避与罪技<br>键盘：WASD移动 · 空格闪避 · Q罪技 · ESC暂停`));
+  s.appendChild(el('div', 'sc-note', `逆圣：黑日遗嘱 v1.3<br>ANATHEMA — TESTAMENT OF THE BLACK SUN<br><br>暗黑哥特 Roguelite 幸存者游戏<br>全部美术·音乐·剧情为程序化原创生成<br><br>操作：左摇杆移动 / 右侧闪避与罪技<br>键盘：WASD移动 · 空格闪避 · Q罪技 · ESC暂停`));
   s.appendChild(el('div', 'divider'));
   s.appendChild(btn('返回', mainMenu));
 }
@@ -81,24 +113,46 @@ export function storyRoll(lines, cb, title = null) {
   const s = el('div', 'fullstory');
   ui().appendChild(s);
   if (title) s.appendChild(el('div', 'endtitle', title));
-  let i = 0;
+  let i = 0, ended = false, timer = null;
+  const done = el('div', 'sc-note', '<br>触摸继续 · 长按跳过');
+  done.style.cssText = 'position:absolute;bottom:8%;width:100%;text-align:center;opacity:.6';
+  const finish = () => {
+    if (ended) return;
+    ended = true;
+    clearInterval(timer);
+    cb();
+  };
   const showNext = () => {
     if (i < lines.length) {
       const ln = el('div', 'ln', lines[i]);
       ln.style.animationDelay = '0.1s';
       s.appendChild(ln);
       i++;
+      if (i >= lines.length) done.innerHTML = '<br>触摸结束';
     }
   };
+  const restartTimer = () => {
+    clearInterval(timer);
+    timer = setInterval(() => {
+      if (i >= lines.length) clearInterval(timer);
+      else showNext();
+    }, 1400);
+  };
   showNext();
-  const timer = setInterval(() => {
-    if (i >= lines.length) { clearInterval(timer); }
-    else showNext();
-  }, 1400);
-  const done = el('div', 'sc-note', '<br>触摸以继续');
-  done.style.cssText = 'position:absolute;bottom:8%;width:100%;text-align:center;opacity:.6';
+  restartTimer();
   s.appendChild(done);
-  s.addEventListener('click', () => { clearInterval(timer); cb(); });
+  // tap = advance one line (every line gets seen); tap after the last = close;
+  // hold 600ms = skip the whole roll for repeat pilgrims
+  let holdT = null, held = false;
+  s.addEventListener('pointerdown', () => { held = false; holdT = setTimeout(() => { held = true; finish(); }, 600); });
+  const cancelHold = () => { if (holdT) { clearTimeout(holdT); holdT = null; } };
+  s.addEventListener('pointerup', cancelHold);
+  s.addEventListener('pointercancel', cancelHold);
+  s.addEventListener('click', () => {
+    if (ended || held) return;
+    if (i < lines.length) { showNext(); restartTimer(); }
+    else finish();
+  });
 }
 
 /* =================== hub 无灯旅店 =================== */
@@ -112,18 +166,23 @@ export function hubScreen() {
   s.appendChild(el('div', 'divider'));
   const grid = el('div', 'hub-npc-list');
   const npcs = [
-    ['notary', () => treeScreen(['flesh', 'weaponT', 'memory'])],
-    ['priest', () => codexScreen()],
-    ['angel', () => treeScreen(['fallen'])],
-    ['mapper', () => modeSelect()],
-    ['mistress', () => charSelect()],
-    ['waiter', () => waiterTalk()],
+    ['notary', 'ledger', () => treeScreen(['flesh', 'weaponT', 'memory'])],
+    ['priest', 'nail', () => codexScreen()],
+    ['angel', 'feather', () => treeScreen(['fallen'])],
+    ['mapper', 'eye', () => modeSelect()],
+    ['mistress', 'needle', () => charSelect()],
+    ['waiter', 'mask', () => waiterTalk()],
   ];
-  for (const [id, cb] of npcs) {
+  for (const [id, ic, cb] of npcs) {
     const n = STORY.npcs[id];
-    const lines = (META.lastDeathBy && n.deathLines.length && Math.random() < 0.4) ? n.deathLines : n.lines;
-    const quote = lines[(Math.random() * lines.length) | 0];
+    // after first clear the NPCs know the sky changed — mix in their late lines
+    const pool = (META.firstClear && n.linesLate) ? [...n.lines, ...n.linesLate] : n.lines;
+    const lines = (META.lastDeathBy && n.deathLines.length && Math.random() < 0.4) ? n.deathLines : pool;
+    const quote = lines[(Math.random() * lines.length) | 0].replace('{killer}', META.lastDeathBy || '未知');
     const d = el('div', 'hub-npc', `<div class="nn">${n.name}</div><div class="nr">${n.role}</div><div class="nq">「${quote}」</div>`);
+    const icc = cloneCanvas(icon(ic));
+    icc.style.cssText = 'width:30px;height:30px;display:block;margin:0 auto 4px;opacity:.85;';
+    d.prepend(icc);
     d.addEventListener('click', () => { sfx.select(); cb(); });
     grid.appendChild(d);
   }
@@ -192,7 +251,7 @@ function difficultySelect(charId) {
   const unlockedN = META.unlockedDifficulty;
   diffs.forEach(([id, d], i) => {
     const locked = i >= unlockedN && i > 0;
-    const b = btn(`${d.name} — 敌人${Math.round(d.hp * 100)}% · 奖励${Math.round(d.reward * 100)}%${locked ? ' 🔒' : ''}`, () => {
+    const b = btn(`<div><div style="letter-spacing:6px">${d.name}${locked ? ' ✕' : ''}</div><div style="font-size:11px;letter-spacing:1px;opacity:.7;margin-top:2px">敌人 ${Math.round(d.hp * 100)}% · 奖励 ${Math.round(d.reward * 100)}%${locked ? ' · 通关前一难度解锁' : ''}</div></div>`, () => {
       if (locked) return;
       sinMarkSelect(charId, id);
     }, 'btn' + (i === 1 ? ' primary' : '') + (locked ? ' ghost' : ''));
@@ -297,12 +356,16 @@ export function treeScreen(treeIds) {
       const resName = { ash: '灰烬', bone: '骨片' }[n.res];
       const extra = n.needNail ? ` +铁钉×${n.needNail}` : n.needPollen ? ` +花粉×${n.needPollen}` : n.needEye ? ` +黑日之瞳×${n.needEye}` : '';
       const div = el('div', `node${maxed ? ' maxed' : ''}${!can && !maxed ? ' cant' : ''}`);
-      const valNow = n.per !== undefined ? n.per * (r + 1) : n.v;
       div.innerHTML = `<div class="info"><div class="nn">${n.name}</div><div class="nd">${n.desc.replace('{v}', n.per !== undefined ? n.per * Math.max(1, r + (maxed ? 0 : 1)) : n.v)}</div></div>
         <div><div class="pips">${'●'.repeat(r)}${'○'.repeat(n.maxRank - r)}</div>
-        <div class="cost">${maxed ? '已满' : `${n.cost(r)}${resName}${extra}`}</div></div>`;
+        <div class="cost ${maxed ? '' : can ? 'ok' : 'no'}">${maxed ? '已满' : `${n.cost(r)}${resName}${extra}`}</div></div>`;
       div.addEventListener('click', () => {
-        if (buyNode(n)) { sfx.levelup(); treeRefresh(); }
+        if (buyNode(n)) {
+          sfx.levelup();
+          treeRefresh();
+          const nd = [...list.children].find(x => x.textContent.includes(n.name));
+          if (nd) nd.classList.add('bought-flash');
+        }
         else sfx.select();
       });
       list.appendChild(div);
@@ -351,7 +414,40 @@ export function codexScreen() {
   addGrid('神器', WEAPONS.map(w => ({ known: META.seenArtifacts.includes(w.artifact.id), name: w.artifact.name, desc: w.artifact.desc + `<br>由 ${w.name} 满级融合`, icon: iconEvolved(w.icon), hint: `与${w.name}有关的传闻……` })));
   addGrid('创世禁器', FORBIDDEN.map(f => ({ known: META.seenForbidden.includes(f.id), name: f.name, desc: f.desc + `<br>需要：${f.needs.map(a => Object.values(WEAPON_BY_ID).find(w => w.artifact.id === a).artifact.name).join(' + ')} + 世界核心「${f.core}」`, icon: iconForbidden(f.icon), hint: '两件神器与一颗世界核心的低语。' })));
   addGrid('结局', Object.entries(STORY.endings).map(([id, e]) => ({ known: META.endings.includes(id), name: e.title, desc: e.lines.slice(0, 2).join('<br>'), icon: icon(id === 'dawn' ? 'sun' : id === 'whitedream' ? 'mask' : id === 'hellking' ? 'seedface' : id === 'blackcrown' ? 'ring' : 'hourglass') })));
-  s.appendChild(el('div', 'sc-note', `告解收集：${META.confessionsFound.length} / 70 · 圣徒告解：${META.saintConfessions.length} / 7`));
+  // —— 告解匣：collected confessions become a readable archive, not one-shot toasts ——
+  s.appendChild(el('div', 'sc-sub', `告解匣 · ${META.confessionsFound.length} / ${STORY.confessions.length}`));
+  const saintRow = el('div', 'saint-row');
+  for (let i = 1; i <= 7; i++) {
+    const sid = 's' + i;
+    const c = STORY.confessions.find(x => x.id === sid);
+    const got = META.saintConfessions.includes(sid);
+    const seal = el('div', 'saint-seal' + (got ? ' got' : ''), got ? '✠' : '·');
+    seal.addEventListener('click', () => {
+      sfx.select();
+      detail.innerHTML = got
+        ? `<b style="color:var(--gold)">${c.title}</b><br>${c.text}`
+        : `<b>第${i}印 · 未拾得</b><br>圣徒的告解，藏于${AREAS[c.area] ? AREAS[c.area].name : c.area}。七印齐时，方可迎来黎明。`;
+    });
+    saintRow.appendChild(seal);
+  }
+  s.appendChild(saintRow);
+  s.appendChild(el('div', 'sc-note', `圣徒告解 ${META.saintConfessions.length} / 7 —— 真结局条件`));
+  for (const aid of ['ashfield', 'cathedral', 'bells', 'hell', 'fakeheaven', 'trueheaven']) {
+    const items = STORY.confessions.filter(c => c.area === aid && !/^s\d$/.test(c.id));
+    s.appendChild(el('div', 'conf-area', AREAS[aid].name));
+    const wrap = el('div', 'conf-list');
+    for (const c of items) {
+      const found = META.confessionsFound.includes(c.id);
+      const d = el('div', 'conf-item' + (found ? ' found' : ''), found ? c.title : '？？？');
+      d.addEventListener('click', () => {
+        sfx.select();
+        detail.innerHTML = found ? `<b>${c.title}</b><br>${c.text}` : `<b>？？？</b><br>仍散落在${AREAS[aid].name}的某处。`;
+        detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
+      wrap.appendChild(d);
+    }
+    s.appendChild(wrap);
+  }
   s.appendChild(btn('返回旅店', hubScreen, 'btn ghost'));
 }
 
@@ -404,7 +500,11 @@ export function applySettings() {
 
 /* =================== in-run overlays =================== */
 export function showAreaTitle(title, sub, lines) {
-  const d = el('div', 'top-note fade-in', `<b style="color:var(--gold)">${sub}</b> · ${title}${lines && lines[0] ? `<br><span style="opacity:.75">${lines[0]}</span>` : ''}`);
+  ui().querySelectorAll('.top-note').forEach(x => x.remove());
+  // revisits (endless loops, hell→fakeheaven detours) rotate through the intro poem
+  const vis = (G.areaVisits && G.areaVisits[G.areaId]) || 1;
+  const line = lines && lines.length ? lines[(vis - 1) % lines.length] : null;
+  const d = el('div', 'top-note fade-in', `<b style="color:var(--gold)">${sub}</b> · ${title}${line ? `<br><span style="opacity:.75">${line}</span>` : ''}`);
   d.style.whiteSpace = 'normal'; d.style.maxWidth = '84vw'; d.style.textAlign = 'center';
   ui().appendChild(d);
   setTimeout(() => d.remove(), 4200);
@@ -424,9 +524,48 @@ window.__TOAST = (title, text) => {
   t.innerHTML = `<div class="ct">拾得告解 · ${title}</div><div class="cx">${text}</div>`;
   t.addEventListener('click', () => t.remove());
   ui().appendChild(t);
-  setTimeout(() => t.remove(), 7000);
+  setTimeout(() => t.remove(), 9000);
 };
+
+/* saint confession (s1-s7): a ritual pause, not a passing toast — these gate the true ending */
+export function showSaintConfession(c) {
+  const tryShow = () => {
+    if (!G.active || G.ended) return;
+    if (G.phase !== 'play') { after(1, tryShow); return; }
+    G.phase = 'story';
+    const s = el('div', 'cards-wrap fade-in');
+    s.appendChild(el('div', 'cards-title', '✠ ' + c.title));
+    const tx = el('div', 'sc-note', c.text);
+    tx.style.cssText = 'max-width:520px;line-height:1.9;color:#D8C7A4;text-align:left;padding:0 10px';
+    s.appendChild(tx);
+    s.appendChild(el('div', 'sc-sub', `圣徒告解 ${META.saintConfessions.length} / 7 —— 七印齐时，方可迎来黎明`));
+    s.appendChild(btn('合上告解', () => { s.remove(); G.phase = 'play'; }, 'btn primary'));
+    ui().appendChild(s);
+  };
+  tryShow();
+}
+
+/* fake-heaven gift: refusing temptation is a choice the player makes, not a timeout */
+export function showGiftChoice({ onTake, onRefuse }) {
+  const tryShow = () => {
+    if (!G.active || G.ended) return;
+    if (G.phase !== 'play') { after(1, tryShow); return; }
+    G.phase = 'story';
+    const s = el('div', 'cards-wrap fade-in');
+    s.appendChild(el('div', 'cards-title', '白衣者的恩赐'));
+    s.appendChild(el('div', 'sc-note', '一只白瓷碗，盛着温热的奶与蜜。<br>「吃吧。您不用再战斗了。」'));
+    s.appendChild(btn('打翻它<br><span style="font-size:11px;opacity:.7">顺从-5 · 守住黎明的资格</span>', () => { s.remove(); G.phase = 'play'; onRefuse(); }, 'btn primary'));
+    s.appendChild(btn('接过奶与蜜<br><span style="font-size:11px;opacity:.7">回复30%生命 · 顺从+15 · 黎明条件破灭</span>', () => { s.remove(); G.phase = 'play'; onTake(); }, 'btn'));
+    ui().appendChild(s);
+  };
+  tryShow();
+}
 window.__BANNER = (name, quote) => {
+  // never stack banners, and never cover full-screen result/story screens;
+  // the tribunal timer owns that screen region (the offer got its own staging)
+  if (G.phase === 'tribunal') return;
+  if (ui().querySelector('.screen, .fullstory, .death-screen')) return;
+  ui().querySelectorAll('.top-note').forEach(x => x.remove());
   const t = el('div', 'top-note fade-in', name ? `<b style="color:var(--danger)">${name}</b>${quote ? `<br><span style="opacity:.8">${quote}</span>` : ''}` : `<span style="opacity:.85">${quote}</span>`);
   t.style.whiteSpace = 'normal'; t.style.maxWidth = '84vw'; t.style.textAlign = 'center';
   ui().appendChild(t);
@@ -438,6 +577,11 @@ export function showDeathChoice({ onAccept, onChallenge, canChallenge }) {
   clear();
   const s = el('div', 'death-screen');
   ui().appendChild(s);
+  STORY.reaper.execute.forEach((tx, k) => {
+    const d = el('div', 'death-line fade-in', tx);
+    d.style.cssText = `font-size:14px;opacity:.75;animation-delay:${0.2 + k * 0.5}s;animation-fill-mode:both;`;
+    s.appendChild(d);
+  });
   s.appendChild(el('div', 'death-line', STORY.deathChoice.line));
   const b1 = el('button', 'death-btn', STORY.deathChoice.accept);
   b1.addEventListener('click', () => { sfx.select(); clear(); onAccept(); });
@@ -449,10 +593,6 @@ export function showDeathChoice({ onAccept, onChallenge, canChallenge }) {
   const note = el('div', 'sc-note', '挑战成功：从地狱复活，继续本局<br>挑战失败：正常结算，保留全部资源');
   note.style.color = '#3a3230';
   s.appendChild(note);
-}
-
-export function showTribunalIntro(lines) {
-  toastLines(STORY.bosses.rahshiel.name, lines.join('\n'));
 }
 
 export function showThroneChoice({ onSit, onLeave }) {
@@ -534,6 +674,11 @@ export function showResults(sum) {
   playMusic('hub');
   s.appendChild(el('div', 'sc-title', sum.victory ? '世界线闭合' : '此身归还'));
   s.appendChild(el('div', 'sc-sub', sum.reason + (sum.ending ? ` · ${STORY.endings[sum.ending] ? STORY.endings[sum.ending].title : ''}` : '')));
+  if (!sum.victory && sum.deathBy) {
+    const rec = el('div', 'sc-note', `殁于${AREAS[sum.area] ? AREAS[sum.area].name : '灰烬'} · 死因：${sum.deathBy}`);
+    rec.style.color = '#8E1F2F';
+    s.appendChild(rec);
+  }
   s.appendChild(el('div', 'divider'));
   const t = el('table', 'stat-table');
   const rows = [

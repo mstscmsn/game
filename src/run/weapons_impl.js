@@ -1,9 +1,9 @@
 // All weapon behaviors: 16 base, 16 evolved (artifact), 6 forbidden, projectile sim.
 import { G, num, burst, zone, after } from './state.js';
 import { BAL } from '../data/balance.js';
-import { WEAPON_BY_ID } from '../data/weapons.js';
+import { WEAPON_BY_ID, CATALYST_BY_ID } from '../data/weapons.js';
 import { dealDamage, dealAreaDamage, applyStatus, healPlayer } from './combat.js';
-import { sfx } from '../audio.js';
+import { sfx, fireSound } from '../audio.js';
 import { addShake, addFlash, hitStop, view } from '../engine.js';
 import { angleTo, TAU, clamp } from '../core/util.js';
 
@@ -17,6 +17,12 @@ function wStat(w) {
   for (let l = 2; l <= w.lv; l++) {
     const bonus = def.lvBonus && def.lvBonus[l];
     if (bonus) for (const [k, v] of Object.entries(bonus)) b[k] = (b[k] || 0) + v;
+  }
+  // 催化共鸣: paired catalyst boosts the weapon's own mechanics pre-fusion
+  const cat = G.player.catalysts.find(c => CATALYST_BY_ID[c.id] && CATALYST_BY_ID[c.id].forW === w.id);
+  if (cat) {
+    const rdef = CATALYST_BY_ID[cat.id];
+    if (rdef.res) for (const [k, v] of Object.entries(rdef.res)) b[k] = (b[k] || 0) + v;
   }
   let dmgMult = BAL.weaponLvMult[Math.min(7, w.lv - 1)];
   if (w.evolved) dmgMult *= BAL.artifactMult;
@@ -97,6 +103,7 @@ function fireWeapon(w, st, isEcho = false) {
   const p = G.player;
   FIRE[w.evolved ? 'evo_' + w.id : w.id](w, st);
   if (!isEcho) {
+    fireSound(w.id);
     p.lastWeaponFire = { id: w.id, evolved: w.evolved };
     const echoFire = () => { G.echoFire = true; fireWeapon(w, st, true); G.echoFire = false; };
     // corlan passive: every 7th attack resonates
@@ -580,12 +587,13 @@ export function updateProjectiles(dt) {
       case 'spear': case 'bullet': case 'dagger': case 'wave': case 'spike':
         pr.x += pr.vx * dt; pr.y += pr.vy * dt;
         hitAlong(pr, () => {
-          if (pr.type === 'wave') return { fear: true };
-          if (pr.type === 'bullet' && p.char.id === 'samuel') {
-            const d = Math.hypot(pr.x - pr.sx, pr.y - pr.sy);
-            return { dmgMul: 1 + Math.min(0.6, d / 700 * 0.6) };
+          if (pr.type === 'wave') return { fear: true, knock: 70 };
+          if (pr.type === 'bullet') {
+            const far = p.char.id === 'samuel' ? { dmgMul: 1 + Math.min(0.6, Math.hypot(pr.x - pr.sx, pr.y - pr.sy) / 700 * 0.6) } : {};
+            return { ...far, knock: 130 };
           }
-          if (pr.type === 'dagger') return { backstab: true };
+          if (pr.type === 'dagger') return { backstab: true, knock: 40 };
+          if (pr.type === 'spear') return { knock: 90 };
           return {};
         });
         break;

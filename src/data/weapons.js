@@ -60,7 +60,7 @@ export const WEAPONS = [
   { id: 'mirrorw', name: '罪镜', icon: 'mirror', tags: ['echo'],
     desc: '周期性复制你最近一次武器攻击',
     base: { damage: 0, cooldown: 5.0, copyMult: 0.8 },
-    lvBonus: { 3: { copyMult: 0.15 }, 5: { copyMult: 0.15 }, 7: { copyMult: 0.2 } },
+    lvBonus: { 2: { cooldown: -0.35 }, 3: { copyMult: 0.15, cooldown: -0.35 }, 4: { cooldown: -0.35 }, 5: { copyMult: 0.15, cooldown: -0.35 }, 6: { cooldown: -0.35 }, 7: { copyMult: 0.2, cooldown: -0.35 }, 8: { cooldown: -0.35 } },
     catalyst: 'twinmask',
     artifact: { id: 'confessional', name: '无尽告解', desc: '四面巨镜环绕，每面复制不同武器' } },
   { id: 'wingblade', name: '断翼刃', icon: 'wingblade', tags: ['boomerang'],
@@ -103,24 +103,26 @@ export const WEAPONS = [
 export const WEAPON_BY_ID = Object.fromEntries(WEAPONS.map(w => [w.id, w]));
 export const ARTIFACT_BY_ID = Object.fromEntries(WEAPONS.map(w => [w.artifact.id, { ...w.artifact, weapon: w.id }]));
 
-/* ---------------- catalysts (fusion passives, lv1-5) ---------------- */
+/* ---------------- catalysts (fusion passives, lv1-5) ----------------
+ * res = 共鸣: extra base-param bonus applied to the paired weapon while both
+ * are held — catalysts stop being anonymous stat sticks before fusion. */
 export const CATALYSTS = [
-  { id: 'heartscar', name: '疤痕心脏', icon: 'heartscar', stat: 'maxHp', v: 0.08, fmt: '最大生命+{v}%', pv: 8, forW: 'saw' },
-  { id: 'belltongue', name: '断裂钟舌', icon: 'belltongueIcon', stat: 'area', v: 0.06, fmt: '范围+{v}%', pv: 6, forW: 'bell' },
-  { id: 'nail', name: '圣徒铁钉', icon: 'nail', stat: 'damage', v: 0.05, fmt: '伤害+{v}%', pv: 5, forW: 'spear' },
-  { id: 'candleblack', name: '黑烛', icon: 'candleblack', stat: 'cdr', v: 0.04, fmt: '冷却缩减+{v}%', pv: 4, forW: 'scripture' },
-  { id: 'ratking', name: '鼠王牙', icon: 'ratking', stat: 'dotMult', v: 0.10, fmt: '持续伤害+{v}%', pv: 10, forW: 'censer' },
-  { id: 'glasseye', name: '玻璃义眼', icon: 'glasseye', stat: 'pickup', v: 0.12, fmt: '拾取范围+{v}%', pv: 12, forW: 'lantern' },
-  { id: 'rosary', name: '铁玫瑰经', icon: 'rosary', stat: 'armor', v: 4, flat: true, fmt: '护甲+{v}', pv: 4, forW: 'chain' },
-  { id: 'vial', name: '什一血瓶', icon: 'vial', stat: 'healPower', v: 0.10, fmt: '治疗效率+{v}%', pv: 10, forW: 'chalice' },
-  { id: 'crownempty', name: '空王冠', icon: 'crownempty', stat: 'luck', v: 0.08, fmt: '幸运+{v}%', pv: 8, forW: 'raven' },
-  { id: 'twinmask', name: '双生面具', icon: 'twinmask', stat: 'sinRate', v: 0.08, fmt: '罪技充能+{v}%', pv: 8, forW: 'mirrorw' },
-  { id: 'ashfeather', name: '灰羽', icon: 'ashfeather', stat: 'moveSpeed', v: 0.04, fmt: '移动速度+{v}%', pv: 4, forW: 'wingblade' },
-  { id: 'gunpowder', name: '火药圣匣', icon: 'gunpowder', stat: 'projSpeed', v: 0.10, fmt: '弹速+{v}%', pv: 10, forW: 'musket' },
-  { id: 'gravehand', name: '守墓手套', icon: 'gravehand', stat: 'crit', v: 0.03, fmt: '暴击率+{v}%', pv: 3, forW: 'bow' },
-  { id: 'boneoil', name: '骨油', icon: 'boneoil', stat: 'critDmg', v: 0.12, fmt: '暴击伤害+{v}%', pv: 12, forW: 'wheel' },
-  { id: 'tongue', name: '罪人之舌', icon: 'tongue', stat: 'sinMarkChance', v: 0.06, fmt: '攻击{v}%概率附加罪印', pv: 6, forW: 'dagger' },
-  { id: 'silkstring', name: '缄默弦', icon: 'silkstring', stat: 'xp', v: 0.06, fmt: '经验获取+{v}%', pv: 6, forW: 'harp' },
+  { id: 'heartscar', name: '疤痕心脏', icon: 'heartscar', stat: 'maxHp', v: 0.08, fmt: '最大生命+{v}%', pv: 8, forW: 'saw', res: { orbitR: 12 }, resTxt: '共鸣：锯刃轨道+12' },
+  { id: 'belltongue', name: '断裂钟舌', icon: 'belltongueIcon', stat: 'area', v: 0.06, fmt: '范围+{v}%', pv: 6, forW: 'bell', res: { radius: 20 }, resTxt: '共鸣：钟波半径+20' },
+  { id: 'nail', name: '圣徒铁钉', icon: 'nail', stat: 'damage', v: 0.05, fmt: '伤害+{v}%', pv: 5, forW: 'spear', res: { pierce: 2 }, resTxt: '共鸣：骨矛穿透+2' },
+  { id: 'candleblack', name: '黑烛', icon: 'candleblack', stat: 'cdr', v: 0.04, fmt: '冷却缩减+{v}%', pv: 4, forW: 'scripture', res: { amount: 1 }, resTxt: '共鸣：纸页+1' },
+  { id: 'ratking', name: '鼠王牙', icon: 'ratking', stat: 'dotMult', v: 0.10, fmt: '持续伤害+{v}%', pv: 10, forW: 'censer', res: { cloudR: 14 }, resTxt: '共鸣：毒雾半径+14' },
+  { id: 'glasseye', name: '玻璃义眼', icon: 'glasseye', stat: 'pickup', v: 0.12, fmt: '拾取范围+{v}%', pv: 12, forW: 'lantern', res: { amount: 1 }, resTxt: '共鸣：灵魂火+1' },
+  { id: 'rosary', name: '铁玫瑰经', icon: 'rosary', stat: 'armor', v: 4, flat: true, fmt: '护甲+{v}', pv: 4, forW: 'chain', res: { reach: 30 }, resTxt: '共鸣：锁链距离+30' },
+  { id: 'vial', name: '什一血瓶', icon: 'vial', stat: 'healPower', v: 0.10, fmt: '治疗效率+{v}%', pv: 10, forW: 'chalice', res: { auraR: 18 }, resTxt: '共鸣：血环半径+18' },
+  { id: 'crownempty', name: '空王冠', icon: 'crownempty', stat: 'luck', v: 0.08, fmt: '幸运+{v}%', pv: 8, forW: 'raven', res: { amount: 1 }, resTxt: '共鸣：乌鸦+1' },
+  { id: 'twinmask', name: '双生面具', icon: 'twinmask', stat: 'sinRate', v: 0.08, fmt: '罪技充能+{v}%', pv: 8, forW: 'mirrorw', res: { copyMult: 0.2 }, resTxt: '共鸣：复制倍率+20%' },
+  { id: 'ashfeather', name: '灰羽', icon: 'ashfeather', stat: 'moveSpeed', v: 0.04, fmt: '移动速度+{v}%', pv: 4, forW: 'wingblade', res: { amount: 1 }, resTxt: '共鸣：羽刃+1' },
+  { id: 'gunpowder', name: '火药圣匣', icon: 'gunpowder', stat: 'projSpeed', v: 0.10, fmt: '弹速+{v}%', pv: 10, forW: 'musket', res: { damage: 8 }, resTxt: '共鸣：弹丸伤害+8' },
+  { id: 'gravehand', name: '守墓手套', icon: 'gravehand', stat: 'crit', v: 0.03, fmt: '暴击率+{v}%', pv: 3, forW: 'bow', res: { amount: 2 }, resTxt: '共鸣：箭雨+2' },
+  { id: 'boneoil', name: '骨油', icon: 'boneoil', stat: 'critDmg', v: 0.12, fmt: '暴击伤害+{v}%', pv: 12, forW: 'wheel', res: { bounces: 3 }, resTxt: '共鸣：弹射+3' },
+  { id: 'tongue', name: '罪人之舌', icon: 'tongue', stat: 'sinMarkChance', v: 0.06, fmt: '攻击{v}%概率附加罪印', pv: 6, forW: 'dagger', res: { amount: 1 }, resTxt: '共鸣：匕首+1' },
+  { id: 'silkstring', name: '缄默弦', icon: 'silkstring', stat: 'xp', v: 0.06, fmt: '经验获取+{v}%', pv: 6, forW: 'harp', res: { arc: 0.4 }, resTxt: '共鸣：音波扇面+0.4' },
 ];
 export const CATALYST_BY_ID = Object.fromEntries(CATALYSTS.map(c => [c.id, c]));
 

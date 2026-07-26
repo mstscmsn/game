@@ -40,6 +40,8 @@ export const G = {
   freeArtifactUpgrade: 0,
   stats1min: null,           // early-run stats for docs acceptance metrics
   dailyDate: null,
+  spawnHoldT: 0, surged1: false, surged2: false, areaVisits: {},
+  lastSparkT: 0, lastCritJuice: 0, sinDeniedT: 0, whisperT: 0,
 };
 
 export function resetG(opts = {}) {
@@ -76,6 +78,8 @@ export function resetG(opts = {}) {
     candleBuffT: 0, duskBuff: 1, tempAtkT: 0, mirrorMult: 1, pausedFrom: null,
     timers: [], purifyOffered: false, lastHitBy: null, echoFire: false,
     ledger: 0, lockedCards: null,
+    spawnHoldT: 0, surged1: false, surged2: false, areaVisits: {},
+    lastSparkT: 0, lastCritJuice: 0, sinDeniedT: 0, whisperT: 0,
   });
   G.hash.clear();
 }
@@ -112,5 +116,10 @@ export function enemyBudget() {
   const t = G.time / 60;
   let cap = BAL.pressure(t);
   if (G.mode === 'endless') cap = Math.min(500, cap * (1 + G.loopN * BAL.endless.densityAdd));
+  // boss fights stay readable: minions are throttled hard while a boss lives
+  if (G.boss && !G.boss.dead) cap = Math.min(cap, 24);
+  // fresh chapters ramp in over 20s instead of slamming to full density
+  const at = G.time - G.areaEnteredAt;
+  cap *= Math.min(1, 0.5 + at / 40);
   return Math.min(cap, 460);
 }

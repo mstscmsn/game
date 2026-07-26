@@ -620,9 +620,10 @@ const BOSS_ROWS = {
 
 /* ============================= PICKUPS & MISC ============================= */
 const MISC_ROWS = {
-  gem1: ['..y..', '.yYy.', 'yYWYy', '.yYy.', '..y..'],
-  gem2: ['..A..', '.ANA.', 'ANSNA', '.ANA.', '..A..'],
-  gem3: ['..P..', '.PRP.', 'PRwRP', '.PRP.', '..P..'],
+  // reward palette = bone/gold/cold-blue — never the red/pink of enemy fire
+  gem1: ['..W..', '.WbW.', 'WbwbW', '.WbW.', '..W..'],
+  gem2: ['..g..', '.gGg.', 'gGyGg', '.gGg.', '..g..'],
+  gem3: ['..A..', '.ASA.', 'ASwSA', '.ASA.', '..A..'],
   heart: ['.r.r.', 'rRrRr', 'rRRRr', '.rRr.', '..r..'],
   soulheart: ['.e.e.', 'eEeEe', 'eEEEe', '.eEe.', '..e..'],
   chest: ['.kkkkkk.', 'kggggggk', 'kgGGGGgk', 'kkkkkkkk', 'kggkkggk', 'kggggggk', 'kkkkkkkk'],
@@ -682,9 +683,18 @@ export function walkFrame(src, scale = 3) {
 export const SPRITES = { chars: {}, charsB: {}, enemies: {}, enemiesB: {}, bosses: {}, misc: {} };
 
 export function buildSprites() {
+  SPRITES.charOutline = {};
   for (const [id, rows] of Object.entries(CHAR_ROWS)) {
     SPRITES.chars[id] = refineSprite(px(rows, { scale: 3 }), 3);
     SPRITES.charsB[id] = walkFrame(SPRITES.chars[id], 3);
+    // bone-white 1px outline halo — the player anchor in dense hordes
+    const src = SPRITES.chars[id];
+    const oc = document.createElement('canvas');
+    oc.width = src.width + 4; oc.height = src.height + 4;
+    const octx = oc.getContext('2d');
+    const white = variant(src, { tint: '#EEEBDD', tintAlpha: 1 });
+    for (const [ox, oy] of [[0, 2], [4, 2], [2, 0], [2, 4]]) octx.drawImage(white, ox, oy);
+    SPRITES.charOutline[id] = oc;
   }
   for (const [id, rows] of Object.entries(ENEMY_ROWS)) {
     SPRITES.enemies[id] = refineSprite(px(rows, { scale: 3 }), 3);

@@ -32,8 +32,17 @@ export function spawnBoss(id) {
   };
   G.boss = boss;
   sfx.boss();
+  hitStop(0.3);
+  addShake(6);
+  zone({ kind: 'warn', x: boss.x, y: boss.y, r: 90, life: 1.0, dps: 0, color: 'rgba(212,71,79,0.2)', warnOnly: true });
   const meta = STORY.bosses[id];
-  if (meta) window.__BANNER && window.__BANNER(meta.name, meta.intro[0] || '');
+  if (meta) {
+    window.__BANNER && window.__BANNER(meta.name, meta.intro[0] || '');
+    for (let k = 1; k < meta.intro.length; k++) {
+      const ln = meta.intro[k];
+      after(4.5 * k, () => { if (G.boss === boss && !boss.dead) window.__BANNER && window.__BANNER('', ln); });
+    }
+  }
   return boss;
 }
 
@@ -291,8 +300,15 @@ function killBoss(b) {
   saveMeta();
   sfx.eliteKill(); addShake(10); addFlash('#D8C7A4', 0.5); hitStop(0.25);
   burst(b.x, b.y, 'rgba(216,199,164,0.9)', 24, 220, 0.8, 5);
+  // release valley: hold spawns, vacuum every gem on the field
+  G.spawnHoldT = 6;
+  for (const k of G.pickups) if (k.type === 'gem') { k.pulled = true; k.pt = 0.6; }
   const meta = STORY.bosses[b.id];
-  if (meta && meta.death[0]) window.__BANNER && window.__BANNER('', meta.death[0]);
+  if (meta && meta.death.length) {
+    // last words land one at a time — the hit-stop gives the first line its beat
+    window.__BANNER && window.__BANNER('', meta.death[0]);
+    if (meta.death.length > 1) after(1.6, () => window.__BANNER && window.__BANNER('', meta.death.slice(1).join('　')));
+  }
   // drops
   G.pickups.push({ type: 'chest', boss: true, x: b.x, y: b.y, t: 0 });
   if (p.relics.includes('crosscoin')) {

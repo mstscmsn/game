@@ -10,13 +10,17 @@ import { setupArea } from './spawner.js';
 import { recomputeStats } from './player.js';
 import { playMusic, stopMusic, sfx } from '../audio.js';
 import { addShake, addFlash, view } from '../engine.js';
-import { showDeathChoice, showResults, showEnding, showFinalChoice, showAreaTitle, showTribunalIntro, showPurifyChoice, toastLines } from '../ui/screens.js';
+import { showDeathChoice, showResults, showEnding, showFinalChoice, showAreaTitle, showPurifyChoice, toastLines, storyRoll } from '../ui/screens.js';
 
 export function enterArea(areaId, opts = {}) {
   G.areaId = areaId;
   G.area = AREAS[areaId];
   G.areaEnteredAt = G.time;
   G.bossSpawned = false;
+  G.surged1 = false; G.surged2 = false;
+  G.eliteT = 45;                  // each chapter's elite lands on a fixed beat
+  G.areaVisits = G.areaVisits || {};
+  G.areaVisits[areaId] = (G.areaVisits[areaId] || 0) + 1;
   setupArea(areaId);
   playMusic(G.area.music);
   const intro = STORY.areaIntro[areaId];
@@ -95,7 +99,18 @@ export function startReaper() {
   document.body.classList.remove('heaven-skin');
   const p = G.player;
   G.reaper = { t: 0, x: p.x, y: p.y - 620, phase: 'walk', stepT: 0 };
-  toastLines(STORY.bosses.finalis.name, STORY.reaper.appear.join('\n'));
+  // the most-repeated scripted moment in the game rotates its script:
+  // veterans who beat the tribunal get a colder greeting
+  const alts = STORY.reaper.appearAlt || [];
+  let lines = STORY.reaper.appear;
+  if ((META.stats.tribunalWins || 0) > 0 && alts[1]) lines = alts[1];
+  else if ((META.deaths || 0) % 2 === 1 && alts[0]) lines = alts[0];
+  toastLines(STORY.bosses.finalis.name, lines.join('\n'));
+  // the corridor gets its intro — the reaper's slow walk is exactly reading time
+  const ci = STORY.areaIntro.corridor;
+  G.areaVisits = G.areaVisits || {};
+  G.areaVisits.corridor = ((META.deaths || 0) % ci.lines.length) + 1;
+  showAreaTitle(ci.title, ci.sub, ci.lines);
 }
 
 export function updateReaper(dt) {
@@ -124,6 +139,8 @@ export function onPlayerDeath(opts = {}) {
   const p = G.player;
   if (opts.execution) {
     // scripted death → death choice screen
+    META.lastDeathBy = '终末钟声';
+    META.deathsBy[META.lastDeathBy] = (META.deathsBy[META.lastDeathBy] || 0) + 1;
     G.phase = 'deathchoice';
     setTimeout(() => {
       showDeathChoice({
@@ -146,6 +163,18 @@ export function onPlayerDeath(opts = {}) {
 /* ============== 堕翼审判 tribunal ============== */
 export function startTribunal() {
   G.tribunalTried = true;
+  // the offer is the thematic center of the game — it gets a full staging,
+  // and the 75s timer only starts once the player has read (or skipped) it
+  G.phase = 'story';
+  playMusic('tribunal');
+  const rematch = (META.stats.tribunalWins || 0) + (META.stats.tribunalLosses || 0) > 0;
+  const offer = rematch ? [STORY.rahshiel.offer[0], '「又是你。」他的锁链轻轻响了一声。', ...STORY.rahshiel.offer.slice(3)] : STORY.rahshiel.offer;
+  storyRoll(offer, () => {
+    document.getElementById('ui-root').innerHTML = '';
+    beginTribunalFight();
+  });
+}
+function beginTribunalFight() {
   G.phase = 'tribunal';
   const p = G.player;
   p.hp = Math.max(1, Math.round(p.S.maxHp * 0.6));
@@ -162,9 +191,7 @@ export function startTribunal() {
   G.enemies.length = 0; G.eprojs.length = 0; G.projs.length = 0; G.pickups.length = 0; G.zones.length = 0;
   G.areaId = 'tribunal'; G.area = AREAS.tribunal;
   setupArea('tribunal');
-  playMusic('tribunal');
   spawnBoss('rahshiel');
-  showTribunalIntro(STORY.rahshiel.offer);
 }
 function updateTribunal(dt) {
   const tr = G.tribunal;
@@ -182,21 +209,30 @@ function tribunalWin() {
   G.runResources.bone += 6;
   G.worldCores++; G.coreNames.push('堕翼骨');
   saveMeta();
-  toastLines(STORY.rahshiel && STORY.bosses.rahshiel.name, STORY.rahshiel.win.join('\n'));
-  // revive in hell
-  const p = G.player;
-  let reviveHp = 0.35;
-  for (const [id, r] of Object.entries(META.nodes)) if (id === 'd_revive') reviveHp += 0.05 * r;
-  p.hp = Math.round(p.S.maxHp * Math.min(0.95, reviveHp));
-  p.shield = 0;
-  G.revived = true;
-  G.phase = 'play';
   G.tribunal = null;
-  enterArea('hell');
+  G.phase = 'story';
+  const lines = META.stats.tribunalWins > 1 && STORY.rahshiel.win2 ? STORY.rahshiel.win2 : STORY.rahshiel.win;
+  storyRoll(lines, () => {
+    document.getElementById('ui-root').innerHTML = '';
+    // revive in hell
+    const p = G.player;
+    let reviveHp = 0.35;
+    for (const [id, r] of Object.entries(META.nodes)) if (id === 'd_revive') reviveHp += 0.05 * r;
+    p.hp = Math.round(p.S.maxHp * Math.min(0.95, reviveHp));
+    p.shield = 0;
+    G.revived = true;
+    G.phase = 'play';
+    enterArea('hell');
+  }, STORY.bosses.rahshiel.name);
 }
 function tribunalFail() {
-  toastLines(STORY.bosses.rahshiel.name, STORY.rahshiel.lose.join('\n'));
-  endRun(false, '审判失败');
+  const again = (META.stats.tribunalWins || 0) + (META.stats.tribunalLosses || 0) > 0;
+  META.stats.tribunalLosses = (META.stats.tribunalLosses || 0) + 1;
+  saveMeta();
+  G.tribunal = null;
+  G.phase = 'story';
+  const lines = again && STORY.rahshiel.lose2 ? STORY.rahshiel.lose2 : STORY.rahshiel.lose;
+  storyRoll(lines, () => endRun(false, '审判失败'), STORY.bosses.rahshiel.name);
 }
 
 /* ============== boss-kill continuations ==============
@@ -266,20 +302,9 @@ export function onBossKilled(id) {
       showFinalChoice({
         canDawn: dawnConditionsMet(),
         onChoice: (choice) => {
-          if (choice === 'destroy') {
-            if (dawnConditionsMet()) triggerEnding('dawn');
-            else {
-              toastLines('', '输送器碎裂。但七份圣徒告解仍未齐全，\n黑暗降下，星星没有出现。');
-              META.firstClear = true; saveMeta();
-              setTimeout(() => endRun(true, '摧毁祈祷输送器'), 2600);
-            }
-          }
+          if (choice === 'destroy') triggerEnding(dawnConditionsMet() ? 'dawn' : 'starless');
           else if (choice === 'inherit') triggerEnding('blackcrown');
-          else if (choice === 'purify') {
-            toastLines('', '你以自己的心灯为她引路。\n圣母沉眠。天空第一次没有声音。');
-            META.firstClear = true; saveMeta();
-            setTimeout(() => endRun(true, '净化圣母'), 2600);
-          }
+          else if (choice === 'purify') triggerEnding('silence');
           else if (choice === 'enter') triggerEnding('eighthday');
         },
       });
@@ -307,7 +332,7 @@ export function triggerEnding(id) {
   if (!META.endings.includes(id)) META.endings.push(id);
   if (id === 'hellking') META.hellThrone = true;
   if (id === 'blackcrown') META.blackCrown = true;
-  if (['dawn', 'blackcrown', 'eighthday'].includes(id)) META.firstClear = true;
+  if (['dawn', 'blackcrown', 'eighthday', 'silence', 'starless'].includes(id)) META.firstClear = true;
   saveMeta();
   const e = STORY.endings[id];
   showEnding(e, () => endRun(true, e.title));
@@ -356,6 +381,11 @@ export function endRun(victory, reason) {
     reason, victory, time: G.time, kills: G.kills, elite: G.eliteKills, boss: G.bossKills,
     dmg: G.dmgDealt, taken: G.dmgTaken, level: p ? p.level : 1,
     char: p ? p.char.id : 'adric', mode: G.mode,
+    area: G.areaId,
+    deathBy: victory ? null
+      : reason === '死亡' ? (G.lastHitBy || '未知')
+      : reason === '审判失败' ? STORY.bosses.rahshiel.name
+      : reason === '接受遗忘' ? '终末钟声' : null,
     gains: { ...R, ash: Math.round(R.ash) },
     artifacts: p ? p.weapons.filter(w => w.evolved).length : 0,
     forbidden: p ? p.forbidden.length : 0,

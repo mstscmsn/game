@@ -1,7 +1,7 @@
 // World + HUD rendering on canvas.
 import { G } from './state.js';
 import { view, beginWorld, endWorld, beginUI, endUI } from '../engine.js';
-import { AREA_BG } from '../art/backgrounds.js';
+import { AREA_BG, DECOS } from '../art/backgrounds.js';
 import { SPRITES, variant } from '../art/sprites.js';
 import { icon, iconEvolved } from '../art/icons.js';
 import { WEAPON_BY_ID } from '../data/weapons.js';
@@ -50,6 +50,7 @@ export function render(ctx) {
   ctx.fillRect(0, 0, view.canvas.width, view.canvas.height);
   beginWorld(ctx);
   drawBackground(ctx);
+  drawHeartLantern(ctx, p);
   drawZones(ctx);
   drawPickups(ctx);
   drawObstacles(ctx);
@@ -77,6 +78,23 @@ function drawBackground(ctx) {
     for (let y = y0; y < view.camY + view.h / 2 + T; y += T)
       ctx.drawImage(bg.tile, x, y);
   if (bg.tint) { ctx.fillStyle = bg.tint; ctx.fillRect(view.camX - view.w / 2, view.camY - view.h / 2, view.w, view.h); }
+  // large silhouette props on a deterministic 560px world grid (§18 大块剪影)
+  const decos = DECOS[G.areaId];
+  if (decos && decos.length) {
+    const GS = 560;
+    const gx0 = Math.floor((view.camX - view.w / 2 - 200) / GS), gx1 = Math.floor((view.camX + view.w / 2 + 200) / GS);
+    const gy0 = Math.floor((view.camY - view.h / 2 - 200) / GS), gy1 = Math.floor((view.camY + view.h / 2 + 200) / GS);
+    for (let gx = gx0; gx <= gx1; gx++) for (let gy = gy0; gy <= gy1; gy++) {
+      let hsh = (gx * 73856093) ^ (gy * 19349663) ^ (G.seed | 0);
+      hsh = (hsh ^ (hsh >> 13)) >>> 0;
+      if (hsh % 10 < 6) continue;                     // ~40% of cells hold a prop
+      const d = decos[hsh % decos.length];
+      const jx = (hsh % 331) - 165, jy = ((hsh >> 5) % 331) - 165;
+      ctx.globalAlpha = 0.85;
+      ctx.drawImage(d, gx * GS + GS / 2 + jx - d.width / 2, gy * GS + GS / 2 + jy - d.height / 2);
+      ctx.globalAlpha = 1;
+    }
+  }
   // 七钟沉城: moving water shimmer
   if (bg.water) {
     ctx.strokeStyle = 'rgba(120,160,220,0.07)';
@@ -96,6 +114,21 @@ function drawBackground(ctx) {
     ctx.fillStyle = `rgba(17,21,30,${a})`;
     ctx.fillRect(view.camX - view.w / 2, view.camY - view.h / 2, view.w, view.h);
   }
+}
+
+/* the heart-lantern: a warm pool of light around the player that rebuilds
+ * chiaroscuro on the flat battlefield (skipped in bright areas / low-fx) */
+function drawHeartLantern(ctx, p) {
+  const bg = AREA_BG[G.area ? G.area.bg : 'ashfield'];
+  if (!bg || bg.bright) return;
+  if (window.SETTINGS && window.SETTINGS.simpleFx) return;
+  const flicker = 1 + Math.sin(G.time * 5.3) * 0.03 + Math.sin(G.time * 13.7) * 0.015;
+  const g = ctx.createRadialGradient(p.x, p.y, 30, p.x, p.y, 195 * flicker);
+  g.addColorStop(0, 'rgba(216,199,164,0.10)');
+  g.addColorStop(0.55, 'rgba(201,150,90,0.05)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(p.x - 200, p.y - 200, 400, 400);
 }
 
 /* ---------------- entities ---------------- */
@@ -220,16 +253,27 @@ function drawEnemies(ctx) {
 function drawBoss(ctx) {
   const b = G.boss;
   if (!b || b.dead || b.invisible) return;
-  const spr = SPRITES.bosses[b.sprite];
+  let spr = SPRITES.bosses[b.sprite];
   if (!spr) return;
+  // hit flash: white silhouette (dimming on hit read as a bug)
+  if (b.hitT > 0) {
+    const key = 'bosshit:' + b.sprite;
+    if (!tintCache.has(key)) tintCache.set(key, variant(spr, { tint: '#EEEBDD', tintAlpha: 0.8 }));
+    spr = tintCache.get(key);
+  }
+  const SCALE = 1.55;                       // presence: draw big, collide same
   const bob = Math.sin(G.time * 2.4) * 3;
   const breathe = 1 + Math.sin(G.time * 1.7) * 0.02;
-  shadow(ctx, b.x, b.y + spr.height / 2 - 4, b.r * 1.05, 0.42);
+  // dark pool beneath the mass
+  const pool = ctx.createRadialGradient(b.x, b.y + spr.height * SCALE * 0.4, 10, b.x, b.y + spr.height * SCALE * 0.4, b.r * 2.1);
+  pool.addColorStop(0, 'rgba(4,3,5,0.5)');
+  pool.addColorStop(1, 'rgba(4,3,5,0)');
+  ctx.fillStyle = pool;
+  ctx.fillRect(b.x - b.r * 2.2, b.y, b.r * 4.4, spr.height * SCALE);
   ctx.save();
   ctx.translate(b.x, b.y + bob);
-  ctx.scale(breathe, 2 - breathe);
+  ctx.scale(SCALE * breathe, SCALE * (2 - breathe));
   if (b.invulnT > 0) ctx.globalAlpha = 0.5;
-  if (b.hitT > 0) ctx.globalAlpha = 0.75;
   if (G.player.x < b.x) ctx.scale(-1, 1);
   ctx.drawImage(spr, -spr.width / 2, -spr.height / 2);
   ctx.restore();
@@ -277,6 +321,9 @@ function drawPlayer(ctx, p) {
   ctx.translate(p.x, p.y + bob);
   if (p.moving) ctx.rotate(p.facing * 0.05);      // lean into movement
   if (p.facing < 0) ctx.scale(-1, 1);
+  // bone-white outline halo: the anchor that keeps "me" findable in a horde
+  const outline = SPRITES.charOutline && SPRITES.charOutline[p.char.id];
+  if (outline) { ctx.globalAlpha *= 0.5; ctx.drawImage(outline, -outline.width / 2, -outline.height / 2); ctx.globalAlpha *= 2; }
   ctx.drawImage(spr, -spr.width / 2, -spr.height / 2);
   ctx.restore();
   ctx.globalAlpha = 1;
@@ -348,7 +395,7 @@ function drawProjectiles(ctx) {
         for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * pr.r, Math.sin(a) * pr.r); ctx.stroke(); }
         ctx.restore(); break;
       }
-      case 'ravenDive': { ctx.fillStyle = '#0B0A0C'; ctx.strokeStyle = '#49364F'; ctx.save(); ctx.translate(pr.cx || pr.x, pr.cy || pr.y); ctx.beginPath(); ctx.moveTo(-10, 0); ctx.lineTo(0, -6); ctx.lineTo(10, -2); ctx.lineTo(4, 4); ctx.lineTo(-4, 3); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore(); break; }
+      case 'ravenDive': { ctx.fillStyle = '#3a2f45'; ctx.strokeStyle = '#9a8fb0'; ctx.lineWidth = 2; ctx.save(); ctx.translate(pr.cx || pr.x, pr.cy || pr.y); ctx.beginPath(); ctx.moveTo(-10, 0); ctx.lineTo(0, -6); ctx.lineTo(10, -2); ctx.lineTo(4, 4); ctx.lineTo(-4, 3); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore(); break; }
       case 'tombstone': { const k = pr.t / pr.life; const y = pr.y + (pr.ty - pr.y) * k * k; ctx.fillStyle = '#8f8570'; ctx.fillRect(pr.tx - 10, y - 14, 20, 24); circleWarn(ctx, pr.tx, pr.ty, pr.r); break; }
       case 'arrowRain': { const k = pr.t / pr.life; const y = pr.y + 200 * k; line2(ctx, { x: pr.x, y, vx: 0, vy: 1 }, 12, '#D8C7A4', 2); break; }
       case 'snipe': { if (pr.target) { ctx.strokeStyle = 'rgba(232,165,74,0.8)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(pr.x, pr.y); ctx.lineTo(pr.target.x, pr.target.y); ctx.stroke(); } break; }
@@ -417,14 +464,19 @@ function drawNums(ctx) {
   ctx.textAlign = 'center';
   for (const n of G.nums) {
     const k = n.t / 0.8;
+    // pop-in: numbers land oversized then settle within the first 0.1s
+    const pop = 1 + 0.55 * Math.max(0, 1 - n.t / 0.11);
     ctx.globalAlpha = 1 - k * k;
-    if (n.kind === 'crit') { ctx.fillStyle = '#e8d98a'; ctx.font = 'bold 15px serif'; }
-    else if (n.kind === 'heal') { ctx.fillStyle = '#9db38c'; ctx.font = '12px serif'; }
-    else if (n.kind === 'combo') { ctx.fillStyle = '#D4474F'; ctx.font = 'bold 13px serif'; }
-    else if (n.kind === 'skill') { ctx.fillStyle = '#B58D3B'; ctx.font = 'bold 14px serif'; }
-    else if (n.kind === 'warn') { ctx.fillStyle = '#D4474F'; ctx.font = 'bold 14px serif'; }
-    else if (n.kind === 'text') { ctx.fillStyle = '#D8C7A4'; ctx.font = '12px serif'; }
-    else { ctx.fillStyle = '#c9c4b2'; ctx.font = '12px serif'; }
+    let size = 12, col = '#c9c4b2', bold = '';
+    if (n.kind === 'crit') { col = '#e8d98a'; size = 16; bold = 'bold '; }
+    else if (n.kind === 'heal') { col = '#9db38c'; }
+    else if (n.kind === 'combo') { col = '#D4474F'; size = 13; bold = 'bold '; }
+    else if (n.kind === 'skill') { col = '#B58D3B'; size = 14; bold = 'bold '; }
+    else if (n.kind === 'warn') { col = '#D4474F'; size = 14; bold = 'bold '; }
+    else if (n.kind === 'text') { col = '#D8C7A4'; }
+    else if (typeof n.v === 'number' && n.v >= 100) { size = 14; bold = 'bold '; }
+    ctx.fillStyle = col;
+    ctx.font = `${bold}${Math.round(size * pop)}px serif`;
     ctx.fillText(typeof n.v === 'number' ? fmt(n.v) : n.v, n.x, n.y - k * 26);
   }
   ctx.globalAlpha = 1;
@@ -503,6 +555,16 @@ function drawOverlays(ctx) {
     ctx.fillRect(0, 0, w, h);
   }
   // knell approach: bleeding clock frame in last minute handled in HUD
+  // low-hp pulse: red breath around the frame edges
+  const pl = G.player;
+  if (pl && pl.hp > 0 && pl.hp < pl.S.maxHp * 0.3 && (G.phase === 'play' || G.phase === 'tribunal')) {
+    const a = 0.16 + 0.12 * Math.sin(G.time * 5);
+    const edge = ctx.createRadialGradient(w / 2, h / 2, h * 0.32, w / 2, h / 2, h * 0.62);
+    edge.addColorStop(0, 'rgba(142,31,47,0)');
+    edge.addColorStop(1, `rgba(142,31,47,${a})`);
+    ctx.fillStyle = edge;
+    ctx.fillRect(0, 0, w, h);
+  }
   // screen flash
   if (view.flash > 0) {
     ctx.globalAlpha = view.flash;
@@ -590,18 +652,30 @@ function drawHUD(ctx, p) {
     ctx.beginPath();
     ctx.arc(w / 2 + 74, py0 + 17, 10, -Math.PI / 2, -Math.PI / 2 + TAU * frac);
     ctx.stroke();
+  } else if (G.mode === 'endless') {
+    // world-layer progress: how deep into the current 8-minute loop
+    const frac = (G.time % 480) / 480;
+    ctx.strokeStyle = '#7C5F8A';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(w / 2 + 74, py0 + 17, 10, -Math.PI / 2, -Math.PI / 2 + TAU * frac);
+    ctx.stroke();
+    ctx.fillStyle = '#8f8570';
+    ctx.font = '9px serif';
+    ctx.fillText(`层${G.loopN + 1}`, w / 2 + 74, py0 + 20);
   }
 
-  /* boss hp */
+  /* boss hp — wide, thick, named in bold */
   if (G.boss && !G.boss.dead) {
     const b = G.boss;
-    ctx.fillStyle = 'rgba(11,10,12,0.6)';
-    ctx.fillRect(w / 2 - 130, py0 + 42, 260, 18);
-    bar(ctx, w / 2 - 126, py0 + 46, 252, 6, clamp(b.hp / b.maxHp, 0, 1), '#D4474F', '#1b171c');
+    const bw = Math.min(w - 60, 330);
+    ctx.fillStyle = 'rgba(11,10,12,0.7)';
+    ctx.fillRect(w / 2 - bw / 2 - 4, py0 + 42, bw + 8, 26);
+    bar(ctx, w / 2 - bw / 2, py0 + 46, bw, 9, clamp(b.hp / b.maxHp, 0, 1), '#D4474F', '#1b171c');
     ctx.fillStyle = '#D8C7A4';
-    ctx.font = '10px serif';
+    ctx.font = 'bold 12px serif';
     const bn = { anlo: '裂腹圣徒·安洛', mimi: '腐香主教·米弥', whale: '吞钟鲸', rahshiel: '堕翼审判者·拉赫希尔', margola: '地狱产婆·玛戈拉', lambking: '白羊之王', mother: '原初圣母·黑昼' }[b.id] || '';
-    ctx.fillText(bn + (b.gated ? ' 【胎炉守护】' : ''), w / 2, py0 + 56);
+    ctx.fillText(bn + (b.gated ? ' 【胎炉守护】' : ''), w / 2, py0 + 65);
   }
   /* tribunal timer */
   if (G.phase === 'tribunal' && G.tribunal) {
@@ -639,19 +713,25 @@ function drawHUD(ctx, p) {
   input.btns.pause = { x: w - 25, y: py0 + 21, r: 32, cb: window.__PAUSE };
   ctx.textAlign = 'left';
 
-  /* xp bar */
-  bar(ctx, 0, py0 + 48, w * clamp(p.xp / p.xpNeed, 0, 1), 3, 1, '#46608a');
+  /* xp bar — with a visible track */
+  ctx.fillStyle = '#1b171c';
+  ctx.fillRect(0, py0 + 48, w, 4);
+  bar(ctx, 0, py0 + 48, w * clamp(p.xp / p.xpNeed, 0, 1), 4, 1, '#46608a');
 
   /* bottom-center: weapon slots */
   const slotY = h - 108 - safeBot;
   const slotsW = 6 * 44;
   for (let i = 0; i < 6; i++) {
     const sx = w / 2 - slotsW / 2 + i * 44;
+    // only owned slots + the next empty one at full presence; rest are whispers
+    const wp = p.weapons[i];
+    const ghost = !wp && i > p.weapons.length;
+    ctx.globalAlpha = ghost ? 0.14 : 1;
     ctx.fillStyle = 'rgba(11,10,12,0.6)';
     ctx.fillRect(sx, slotY, 40, 40);
     ctx.strokeStyle = '#3a3230';
     ctx.strokeRect(sx, slotY, 40, 40);
-    const wp = p.weapons[i];
+    ctx.globalAlpha = 1;
     if (wp) {
       const def = WEAPON_BY_ID[wp.id];
       const ic = wp.evolved ? iconEvolved(def.icon) : icon(def.icon);

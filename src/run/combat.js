@@ -38,6 +38,18 @@ export function dealDamage(e, base, opts = {}) {
   e.hp -= dmg;
   G.dmgDealt += dmg;
   e.hitT = 0.08;
+  // per-hit micro-feedback: throttled impact sparks; crits get their own tier
+  if (!opts.isDot) {
+    if (G.time - (G.lastSparkT || 0) > 0.05) {
+      G.lastSparkT = G.time;
+      burst(e.x, e.y, crit ? 'rgba(232,217,138,0.9)' : 'rgba(216,199,164,0.7)', crit ? 4 : 2, 80, 0.16, 2);
+    }
+    if (crit && G.time - (G.lastCritJuice || 0) > 0.25) {
+      G.lastCritJuice = G.time;
+      hitStop(0.035);
+      addShake(1.5);
+    }
+  }
   if (!opts.isDot) {
     if (window.SETTINGS?.mergeNumbers) {
       e.numAcc = (e.numAcc || 0) + dmg; e.numT = 0.25;

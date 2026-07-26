@@ -41,6 +41,7 @@ html, body {
   scrollbar-width: thin; scrollbar-color: var(--corrupt) transparent;
 }
 .screen.dim { background: rgba(6,5,7,0.88); }
+.screen.center { justify-content: center; }
 .screen::-webkit-scrollbar { width: 4px; }
 .screen::-webkit-scrollbar-thumb { background: var(--corrupt); }
 
@@ -60,21 +61,31 @@ html, body {
 }
 
 /* ---------- buttons ---------- */
+/* hex buttons: outer layer paints the "border", inset ::before paints the fill —
+ * a real border would be clipped to floating segments by the clip-path */
 .btn {
   touch-action: manipulation;
-  display: block; width: min(86vw, 360px); margin: 7px auto; padding: 13px 18px;
-  background: linear-gradient(180deg, #1a1216 0%, #120c0f 100%);
-  border: 1px solid var(--gold); color: var(--bone);
-  font-family: inherit; font-size: 17px; letter-spacing: 5px; text-indent:5px; text-align: center;
-  cursor: pointer; position: relative;
+  display: flex; align-items: center; justify-content: center;
+  width: min(86vw, 360px); margin: 7px auto; padding: 13px 18px;
+  background: var(--gold);
+  border: none; color: var(--bone);
+  font-family: inherit; font-size: 17px; letter-spacing: 5px; text-indent: 5px; text-align: center;
+  cursor: pointer; position: relative; z-index: 0;
   clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 10px 100%, 0 50%);
   transition: background .15s, color .15s;
   min-height: 48px;
 }
-.btn:active { background: var(--blood); color: #fff; }
-.btn.primary { border-color: var(--blood); box-shadow: 0 0 16px rgba(142,31,47,.35) inset; font-size: 19px; }
-.btn.small { width: auto; min-width: 120px; padding: 9px 22px; font-size: 14px; margin: 5px; display: inline-block; }
-.btn.ghost { opacity: .75; border-color: var(--corrupt); }
+.btn::before {
+  content: ""; position: absolute; inset: 1.5px; z-index: -1;
+  background: linear-gradient(180deg, #1a1216 0%, #120c0f 100%);
+  clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 10px 100%, 0 50%);
+}
+.btn:active::before { background: var(--blood); }
+.btn:active { color: #fff; }
+.btn.primary { background: var(--danger); font-size: 19px; }
+.btn.primary::before { background: linear-gradient(180deg, #2a1015 0%, #17090c 100%); box-shadow: 0 0 16px rgba(142,31,47,.4) inset; }
+.btn.small { width: auto; min-width: 120px; padding: 9px 22px; font-size: 14px; margin: 5px; display: inline-flex; min-height: 40px; }
+.btn.ghost { opacity: .8; background: var(--corrupt); }
 .btn:disabled { opacity: .35; pointer-events: none; }
 .btn-row { display: flex; flex-wrap: wrap; justify-content: center; width: 100%; }
 
@@ -92,7 +103,16 @@ html, body {
   background: linear-gradient(180deg, rgba(30,22,26,.97), rgba(14,10,12,.97));
   border: 1px solid var(--bone-dim); position: relative;
   transition: transform .12s, border-color .12s;
+  animation: cardin .28s backwards;
 }
+.upcard:nth-child(2) { animation-delay: .05s; }
+.upcard:nth-child(3) { animation-delay: .1s; }
+.upcard:nth-child(4) { animation-delay: .15s; }
+.upcard:nth-child(5) { animation-delay: .2s; }
+@keyframes cardin { from { opacity: 0; transform: translateY(14px); } }
+.upcard.q-rare .tag { color: var(--gold); }
+.upcard.q-cursed .tag { color: #b49ac2; }
+.upcard.q-art .tag { color: var(--danger); }
 .upcard:active { transform: scale(0.97); }
 .upcard .ic { width: 60px; height: 60px; flex: 0 0 60px; image-rendering: pixelated; }
 .upcard .ic canvas, .upcard .ic img { width: 100%; height: 100%; image-rendering: pixelated; }
@@ -157,10 +177,14 @@ html, body {
 .node .nn { font-size: 14px; color: var(--bone); letter-spacing: 1px; }
 .node .nd { font-size: 11px; color: var(--bone-dim); margin-top: 2px; line-height: 1.5; }
 .node .pips { font-size: 12px; color: var(--gold); letter-spacing: 2px; }
-.node .cost { font-size: 12px; color: var(--danger); white-space: nowrap; }
+.node .cost { font-size: 12px; color: var(--bone-dim); white-space: nowrap; }
+.node .cost.ok { color: var(--gold); }
+.node .cost.no { color: var(--danger); }
 .node.maxed { border-color: var(--gold); }
 .node.maxed .cost { color: var(--heal); }
 .node.cant { opacity: .55; }
+.node.bought-flash { animation: boughtf .5s; }
+@keyframes boughtf { 0% { border-color: var(--gold); box-shadow: 0 0 18px rgba(181,141,59,.5); } }
 
 /* ---------- dialog / story ---------- */
 .story-box {
@@ -244,5 +268,17 @@ body.heaven-skin .upcard .ds { color: #7a6f5c; }
 .fade-in { animation: fadein .5s; }
 @keyframes fadein { from { opacity: 0; } }
 
-.top-note { position:absolute; top: calc(8px + var(--safe-top)); left:50%; transform:translateX(-50%); font-size:12px; letter-spacing:2px; color:var(--bone-dim); background:rgba(8,6,8,.7); padding:6px 14px; border:1px solid #302a28; z-index:30; white-space:nowrap; pointer-events:none; }
+/* sits below the 46px HUD strip AND the boss hp plate (ends ~py0+68) so
+   banners never cover the clock or a boss bar */
+.top-note { position:absolute; top: calc(84px + var(--safe-top)); left:50%; transform:translateX(-50%); font-size:12px; letter-spacing:2px; color:var(--bone-dim); background:rgba(8,6,8,.7); padding:6px 14px; border:1px solid #302a28; z-index:30; white-space:nowrap; pointer-events:none; }
 .confession-toast { pointer-events:auto; }
+
+/* ---------- 告解匣 archive (codex) ---------- */
+.saint-row { display:flex; gap:8px; justify-content:center; margin:8px 0 2px; }
+.saint-seal { width:34px; height:34px; border:1px solid #3a3230; display:flex; align-items:center; justify-content:center; color:#3a3230; font-size:16px; cursor:pointer; }
+.saint-seal.got { border-color:var(--gold); color:var(--gold); box-shadow:0 0 8px rgba(181,141,59,.35); text-shadow:0 0 6px rgba(181,141,59,.6); }
+.conf-area { margin:12px 0 5px; color:var(--gold); letter-spacing:3px; font-size:12px; opacity:.75; }
+.conf-list { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; width:min(94vw,460px); }
+.conf-item { border:1px solid #2b2422; padding:4px 9px; font-size:11px; color:#57503f; cursor:pointer; background:rgba(16,12,14,.5); }
+.conf-item.found { color:var(--bone-dim); border-color:#4a3f33; }
+.conf-item.found:active { color:var(--bone); }

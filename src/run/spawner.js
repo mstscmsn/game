@@ -23,8 +23,9 @@ export function spawnEnemy(typeId, x, y, elite = false) {
   const diffAtk = G.diff.atk * (1 + G.sinMarks * 0.08) * (G.mode === 'endless' ? Math.pow(BAL.endless.atkPow, G.loopN) : 1);
   let hp = BAL.enemyHp(def.hp, zm, diffHp, t);
   let dmg = BAL.enemyAtk(def.dmg, zm, diffAtk, t);
-  // vielna curse: rare items strengthen enemies
-  hp *= (1 + (G.rareTaken || 0) * 0.02 + (S().curse || 0) * 0.5);
+  // vielna's trait only: her rare finds strengthen enemies; curse affects all
+  const vielnaTax = G.player && G.player.char.id === 'vielna' ? (G.rareTaken || 0) * 0.02 : 0;
+  hp *= (1 + vielnaTax + (S().curse || 0) * 0.5);
   if (elite) { hp *= 8; dmg *= 1.5; }
   const e = {
     id: uid++, typeId, def,
@@ -55,6 +56,12 @@ export function updateSpawner(dt) {
   if (G.areaId === 'corridor') return;         // reaper corridor: no spawns
   const table = SPAWN_TABLES[G.areaId];
   if (!table) return;
+  // release valley after a boss falls
+  if (G.spawnHoldT > 0) { G.spawnHoldT -= dt; updateAreaEvents(dt); return; }
+  // chapter waveform: two surges at ~55s and ~100s instead of a flat drip
+  const at = G.time - G.areaEnteredAt;
+  if (!G.surged1 && at > 55 && at < 58) { G.surged1 = true; G.spawnAcc += 10; num(G.player.x, G.player.y - 40, '尸潮涌动', 'warn'); }
+  if (!G.surged2 && at > 100 && at < 103) { G.surged2 = true; G.spawnAcc += 12; num(G.player.x, G.player.y - 40, '尸潮涌动', 'warn'); }
   const alive = G.enemies.length;
   const budget = enemyBudget();
   G.spawnAcc = (G.spawnAcc || 0) + dt * (alive < budget * 0.5 ? 3 : alive < budget ? 1.4 : 0);
@@ -72,8 +79,8 @@ export function updateSpawner(dt) {
     const pos = spawnPos();
     spawnEnemy(pick.id, pos.x, pos.y, false);
   }
-  // elites
-  G.eliteT = (G.eliteT || 70) - dt;
+  // elites (timer freezes during boss fights so they don't pollute the duel)
+  if (!G.boss) G.eliteT = (G.eliteT || 70) - dt;
   if (G.eliteT <= 0) {
     G.eliteT = 85;
     const n = 1 + (G.player.relics.includes('invitation') ? 1 : 0);
@@ -319,24 +326,44 @@ function collect(k) {
     case 'confession': {
       const c = k.conf;
       if (c) {
+        const isSaint = /^s\d$/.test(c.id);
         if (!META.confessionsFound.includes(c.id)) META.confessionsFound.push(c.id);
-        if (/^s\d$/.test(c.id) && !META.saintConfessions.includes(c.id)) META.saintConfessions.push(c.id);
+        if (isSaint && !META.saintConfessions.includes(c.id)) META.saintConfessions.push(c.id);
         // 儿童祷文 for mina's unlock — a fixed set of child-voiced confessions
         const CHILD_PRAYERS = ['c03', 'c04', 'c09', 'c13', 'c14', 'c17', 'c52'];
         META.stats.prayers = CHILD_PRAYERS.filter(id => META.confessionsFound.includes(id)).length;
         G.confessionsThisRun.push(c.id);
         saveMeta();
-        window.__TOAST && window.__TOAST(c.title, c.text);
+        if (isSaint) {
+          // a true-ending seal deserves a ritual, not a passing toast
+          sfx.bigbell();
+          addFlash('#D8C7A4', 0.4);
+          import('../ui/screens.js').then(m => m.showSaintConfession(c));
+        } else {
+          window.__TOAST && window.__TOAST(c.title, c.text);
+        }
         G.runResources.pollen += G.areaId === 'fakeheaven' ? 3 : 1;
       }
       sfx.chest();
       break;
     }
     case 'gift': {
-      G.giftsTaken++;
-      G.obedience = Math.min(100, G.obedience + 15);
-      healPlayer(p.S.maxHp * 0.3);
-      num(p.x, p.y - 20, '「吃吧，你不用再战斗了。」', 'text');
+      // refusing temptation is the chapter's theme — make it an explicit choice
+      import('../ui/screens.js').then(m => m.showGiftChoice({
+        onTake: () => {
+          G.giftsTaken++;
+          G.obedience = Math.min(100, G.obedience + 15);
+          healPlayer(G.player.S.maxHp * 0.3);
+          num(G.player.x, G.player.y - 20, '「吃吧，你不用再战斗了。」', 'text');
+        },
+        onRefuse: () => {
+          G.giftsRefused++;
+          G.obedience = Math.max(0, G.obedience - 5);
+          const L = STORY.fakeHeavenNpc;
+          num(G.player.x, G.player.y - 30, '「' + L[(G.rng() * L.length) | 0] + '」', 'text');
+          sfx.select();
+        },
+      }));
       break;
     }
     case 'candle': {
@@ -476,6 +503,14 @@ function updateAreaEvents(dt) {
         const a = G.rng() * TAU;
         G.pickups.push({ type: 'gift', x: p.x + Math.cos(a) * 220, y: p.y + Math.sin(a) * 220, t: 0, life: 12 });
         num(p.x, p.y - 40, '白衣者留下了礼物', 'warn');
+      }
+      // the residents murmur — gentle horror carried by the unused whisper pool
+      G.whisperT = (G.whisperT || 8) - dt;
+      if (G.whisperT <= 0) {
+        G.whisperT = 9 + G.rng() * 5;
+        const L = STORY.fakeHeavenNpc;
+        const line = G.obedience > 70 ? L[5 + ((G.rng() * (L.length - 5)) | 0)] : L[(G.rng() * L.length) | 0];
+        num(p.x + G.rng() * 140 - 70, p.y - 64, '「' + line + '」', 'text');
       }
       // holiday crown relic
       if (p.relics.includes('holidaycrown')) {
