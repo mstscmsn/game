@@ -70,9 +70,9 @@ html, body {
   background: var(--gold);
   border: none; color: var(--bone);
   font-family: inherit; font-size: 17px; letter-spacing: 5px; text-indent: 5px; text-align: center;
-  cursor: pointer; position: relative; z-index: 0;
+  cursor: pointer; position: relative; z-index: 0; overflow: hidden;
   clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 10px 100%, 0 50%);
-  transition: background .15s, color .15s;
+  transition: background .15s, color .15s, transform .12s, filter .18s;
   min-height: 48px;
 }
 .btn::before {
@@ -282,3 +282,115 @@ body.heaven-skin .upcard .ds { color: #7a6f5c; }
 .conf-item { border:1px solid #2b2422; padding:4px 9px; font-size:11px; color:#57503f; cursor:pointer; background:rgba(16,12,14,.5); }
 .conf-item.found { color:var(--bone-dim); border-color:#4a3f33; }
 .conf-item.found:active { color:var(--bone); }
+
+/* ============================================================
+   UI FX PACK — ash-fall, entrances, glows, sweeps (v1.4)
+   ============================================================ */
+
+/* ash-fall canvas — created once by screens.js, drawn only while a .screen exists */
+#ashfall-fx { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
+
+/* screen transition: outgoing screen sinks & fades before the incoming one fades in */
+.screen-out { animation: scrout .16s ease-in forwards; pointer-events: none; }
+@keyframes scrout { to { opacity: 0; transform: translateY(16px); } }
+
+/* title entrance: wide letter-spacing collapsing into place */
+.sc-title { animation: titlein 1s cubic-bezier(.3,.6,.3,1) backwards; }
+@keyframes titlein { from { opacity: 0; letter-spacing: 32px; text-indent: 32px; } }
+
+/* black-sun emblem: slow halo pulse (filter animation, GPU composited) */
+.emblem-fx { animation: emblemglow 4.6s ease-in-out infinite; }
+@keyframes emblemglow {
+  0%, 100% { filter: drop-shadow(0 0 5px rgba(142,31,47,.2)); }
+  50% { filter: drop-shadow(0 0 20px rgba(142,31,47,.55)) drop-shadow(0 0 7px rgba(181,141,59,.3)); }
+}
+
+/* buttons: hover brighten (border layer is the outer background), press feedback,
+ * primary gold sweep on ::after — z-index:-1 keeps it above the ::before fill but
+ * under the label text; the element clip-path/overflow clips the sweep */
+.btn:hover { filter: brightness(1.16); }
+.btn:active { transform: scale(.97); filter: brightness(1.28); }
+.btn.primary::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(115deg, transparent 30%, rgba(216,199,164,.13) 43%, rgba(255,224,150,.4) 50%, rgba(216,199,164,.13) 57%, transparent 70%);
+  transform: translateX(-110%);
+  animation: btnsweep 3s ease-in-out .6s infinite;
+}
+@keyframes btnsweep { 0% { transform: translateX(-110%); } 36%, 100% { transform: translateX(110%); } }
+body.heaven-skin .btn.primary::after { opacity: .45; }
+
+/* level-up card quality glow (box-shadow breath; ≤6 such elements ever on screen) */
+.upcard.q-rare { animation: cardin .28s backwards, glowrare 2.6s ease-in-out infinite; }
+@keyframes glowrare {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(181,141,59,.35), 0 0 14px rgba(181,141,59,.12); }
+  50% { box-shadow: 0 0 0 1px rgba(181,141,59,.65), 0 0 24px rgba(181,141,59,.32); }
+}
+.upcard.q-art { animation: cardin .28s backwards, glowart 2.2s ease-in-out infinite; }
+@keyframes glowart {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(142,31,47,.5), 0 0 22px rgba(142,31,47,.25); }
+  50% { box-shadow: 0 0 0 1px rgba(212,71,79,.75), 0 0 32px rgba(142,31,47,.5); }
+}
+.upcard.q-forbidden { animation: cardin .28s backwards, glowforb 3.4s ease-in-out infinite; }
+@keyframes glowforb {
+  0%, 100% { box-shadow: 0 0 30px rgba(212,71,79,.4); outline-color: var(--blood); }
+  50% { box-shadow: 0 0 46px rgba(90,10,16,.75), inset 0 0 26px rgba(80,8,14,.5); outline-color: #5a0a10; }
+}
+/* heaven skin: gentle single pulse instead of the harsh dark glows */
+body.heaven-skin .upcard.q-rare, body.heaven-skin .upcard.q-art, body.heaven-skin .upcard.q-forbidden {
+  animation: cardin .28s backwards, glowheaven 3s ease-in-out infinite;
+}
+@keyframes glowheaven {
+  0%, 100% { box-shadow: 0 0 8px rgba(181,141,59,.15); }
+  50% { box-shadow: 0 0 16px rgba(181,141,59,.3); }
+}
+/* picked card: white flash + slight grow, plays during the 140ms before close */
+.upcard.picked, body.heaven-skin .upcard.picked { animation: pickflash .3s ease-out forwards; }
+@keyframes pickflash {
+  0% { transform: scale(1); filter: brightness(1); }
+  40% { transform: scale(1.05); filter: brightness(2.2); border-color: #fff; box-shadow: 0 0 34px rgba(238,235,221,.55); }
+  100% { transform: scale(1.02); filter: brightness(1.4); }
+}
+
+/* banner: slide in, hold, fade out — matches the 4200ms JS removal, stays untouchable */
+.top-note { animation: topnote 4.2s ease both; }
+@keyframes topnote {
+  0% { opacity: 0; transform: translate(-50%, -14px); }
+  8% { opacity: 1; transform: translate(-50%, 0); }
+  85% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, 5px); }
+}
+
+/* results: gain lines stagger in (delays assigned by screens.js) */
+.gain-list { animation: gainin .6s .25s backwards; }
+@keyframes gainin { from { opacity: 0; transform: translateY(8px); } }
+
+/* settings: springy toggle knob + gold glow when on; slider thumb grows on hover */
+.toggle { transition: border-color .25s, box-shadow .25s; }
+.toggle::after { transition: left .22s cubic-bezier(.34,1.56,.64,1), background .22s; }
+.toggle.on { box-shadow: 0 0 10px rgba(181,141,59,.35), inset 0 0 6px rgba(181,141,59,.15); }
+.slider::-webkit-slider-thumb { transition: transform .15s, box-shadow .15s; }
+.slider:hover::-webkit-slider-thumb { transform: scale(1.25); box-shadow: 0 0 8px rgba(181,141,59,.5); }
+
+/* hub NPC cards: hover lift + quote reveals left-to-right (mask sweep, pure CSS) */
+.hub-npc { transition: transform .18s, border-color .18s, box-shadow .18s; }
+.hub-npc:hover { transform: translateY(-3px); border-color: var(--gold); box-shadow: 0 8px 18px rgba(0,0,0,.45); }
+.hub-npc:active { transform: translateY(-1px) scale(.98); border-color: var(--gold); }
+.hub-npc .nq {
+  -webkit-mask-image: linear-gradient(100deg, #000 46%, transparent 60%);
+  mask-image: linear-gradient(100deg, #000 46%, transparent 60%);
+  -webkit-mask-size: 280% 100%; mask-size: 280% 100%;
+  -webkit-mask-position: 0% 0; mask-position: 0% 0;
+  animation: nqreveal 1.5s .25s ease-out backwards;
+}
+@keyframes nqreveal {
+  from { -webkit-mask-position: 100% 0; mask-position: 100% 0; opacity: .1; }
+  to { -webkit-mask-position: 0% 0; mask-position: 0% 0; opacity: 1; }
+}
+
+/* death screen: blood vignette pulsing at the edges (opacity-only animation) */
+.death-screen::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(90% 75% at 50% 45%, transparent 55%, rgba(142,31,47,.28) 100%);
+  animation: deathvign 3.6s ease-in-out infinite;
+}
+@keyframes deathvign { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }

@@ -15,6 +15,17 @@ import { G, after, num } from '../run/state.js';
 import { fmt, fmtTime } from '../core/util.js';
 
 const ui = () => document.getElementById('ui-root');
+
+// data-URI favicon (a tiny black sun): gives the tab an icon and stops browsers
+// from 404-ing on /favicon.ico when serving dist
+if (!document.querySelector('link[rel="icon"]')) {
+  const fav = document.createElement('link');
+  fav.rel = 'icon';
+  fav.href = 'data:image/svg+xml,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><rect width="16" height="16" fill="#0B0A0C"/><circle cx="8" cy="8" r="5" fill="none" stroke="#8E1F2F" stroke-width="2"/><circle cx="8" cy="8" r="2" fill="#B58D3B"/></svg>');
+  document.head.appendChild(fav);
+}
+
 let startRunFn = null;
 export function bindStart(fn) { startRunFn = fn; }
 
@@ -30,11 +41,68 @@ function btn(label, cb, cls = 'btn') {
   b.addEventListener('click', () => { sfx.select(); cb(); });
   return b;
 }
+// screen(): menu screens cross-fade — the old screen sinks/fades for 160ms while the
+// new one fades in on top. Battle entry/exit paths (launch/showResults) never see an
+// old .screen, so they keep the instant clear() behavior.
+let scrOut = false; // re-entry guard: only one outgoing screen animates at a time
 function screen(cls = '') {
-  clear();
+  const root = ui();
+  const old = root.querySelector('.screen:not(.screen-out)');
+  if (old && !scrOut) {
+    scrOut = true;
+    for (const ch of [...root.children]) if (ch !== old) ch.remove();
+    old.classList.add('screen-out');
+    setTimeout(() => { old.remove(); scrOut = false; }, 180);
+  } else {
+    clear();
+    scrOut = false;
+  }
   const s = el('div', 'screen fade-in ' + cls);
-  ui().appendChild(s);
+  root.appendChild(s);
+  startAshFall();
   return s;
+}
+
+/* ---------- ash-fall particle layer ----------
+ * One persistent canvas outside #ui-root (so clear() never kills it). The rAF loop
+ * self-suspends the moment no .screen exists — battle never pays for it. */
+let ashC = null, ashRAF = 0, ashPts = null;
+function startAshFall() {
+  if (!ashC) {
+    ashC = document.createElement('canvas');
+    ashC.id = 'ashfall-fx';
+    (document.getElementById('app') || document.body).appendChild(ashC);
+    ashPts = [];
+    for (let i = 0; i < 40; i++) ashPts.push({
+      x: Math.random(), y: Math.random(), r: 1 + Math.random() * 1.6,
+      vy: 9 + Math.random() * 15, sway: 5 + Math.random() * 13,
+      ph: Math.random() * 6.283, sp: 0.35 + Math.random() * 0.8,
+      a: 0.10 + Math.random() * 0.22,
+    });
+  }
+  if (ashRAF) return;
+  ashC.style.display = 'block';
+  let last = performance.now();
+  const tick = (now) => {
+    if (!ui().querySelector('.screen')) { ashRAF = 0; ashC.style.display = 'none'; return; }
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    const W = innerWidth, H = innerHeight;
+    if (ashC.width !== W || ashC.height !== H) { ashC.width = W; ashC.height = H; }
+    const x = ashC.getContext('2d');
+    x.clearRect(0, 0, W, H);
+    const heaven = document.body.classList.contains('heaven-skin');
+    x.fillStyle = heaven ? '#9a8f74' : '#8f8570';
+    for (const p of ashPts) {
+      p.y += p.vy * dt / H;
+      p.ph += p.sp * dt;
+      if (p.y > 1.02) { p.y = -0.02; p.x = Math.random(); }
+      x.globalAlpha = p.a * (heaven ? 0.6 : 1);
+      x.fillRect(p.x * W + Math.sin(p.ph) * p.sway, p.y * H, p.r, p.r);
+    }
+    x.globalAlpha = 1;
+    ashRAF = requestAnimationFrame(tick);
+  };
+  ashRAF = requestAnimationFrame(tick);
 }
 // black-sun emblem canvas for menu headers (procedural, cached)
 let emblemC = null;
@@ -64,6 +132,7 @@ function blackSunEmblem() {
     x.beginPath(); x.moveTo(cx - 30, cy); x.quadraticCurveTo(cx, cy + 18, cx + 30, cy); x.stroke();
   }
   const c = cloneCanvas(emblemC);
+  c.className = 'emblem-fx';
   c.style.cssText = 'width:min(64vw,250px);height:auto;display:block;margin:2px auto 0;';
   return c;
 }
@@ -99,7 +168,7 @@ function aboutScreen() {
   const s = screen();
   s.appendChild(el('div', 'sc-title', '关于'));
   s.appendChild(el('div', 'divider'));
-  s.appendChild(el('div', 'sc-note', `逆圣：黑日遗嘱 v1.3<br>ANATHEMA — TESTAMENT OF THE BLACK SUN<br><br>暗黑哥特 Roguelite 幸存者游戏<br>全部美术·音乐·剧情为程序化原创生成<br><br>操作：左摇杆移动 / 右侧闪避与罪技<br>键盘：WASD移动 · 空格闪避 · Q罪技 · ESC暂停`));
+  s.appendChild(el('div', 'sc-note', `逆圣：黑日遗嘱 v1.4<br>ANATHEMA — TESTAMENT OF THE BLACK SUN<br><br>暗黑哥特 Roguelite 幸存者游戏<br>全部美术·音乐·剧情为程序化原创生成<br><br>操作：左摇杆移动 / 右侧闪避与罪技<br>键盘：WASD移动 · 空格闪避 · Q罪技 · ESC暂停`));
   s.appendChild(el('div', 'divider'));
   s.appendChild(btn('返回', mainMenu));
 }
@@ -681,18 +750,30 @@ export function showResults(sum) {
   }
   s.appendChild(el('div', 'divider'));
   const t = el('table', 'stat-table');
+  const int = v => String(Math.round(v));
   const rows = [
-    ['存活时间', fmtTime(sum.time)], ['等级', sum.level], ['击杀', fmt(sum.kills)],
-    ['精英击杀', sum.elite], ['Boss击杀', sum.boss], ['总伤害', fmt(sum.dmg)],
-    ['承受伤害', fmt(sum.taken)], ['神器', sum.artifacts], ['创世禁器', sum.forbidden],
-    ['拾得告解', sum.confessions],
+    ['存活时间', sum.time, fmtTime], ['等级', sum.level, int], ['击杀', sum.kills, fmt],
+    ['精英击杀', sum.elite, int], ['Boss击杀', sum.boss, int], ['总伤害', sum.dmg, fmt],
+    ['承受伤害', sum.taken, fmt], ['神器', sum.artifacts, int], ['创世禁器', sum.forbidden, int],
+    ['拾得告解', sum.confessions, int],
   ];
-  for (const [k, v] of rows) {
+  const cells = [];
+  for (const [k, v, f] of rows) {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${k}</td><td>${v}</td>`;
+    tr.innerHTML = `<td>${k}</td><td></td>`;
     t.appendChild(tr);
+    cells.push([tr.lastElementChild, +v || 0, f]);
   }
   s.appendChild(t);
+  // numbers roll 0 → final over ~500ms (eased); cells hold the true value at the end
+  const t0 = performance.now();
+  const roll = (now) => {
+    const k = Math.min(1, (now - t0) / 500);
+    const e = 1 - Math.pow(1 - k, 3);
+    for (const [td, v, f] of cells) td.textContent = f(v * e);
+    if (k < 1 && t.isConnected) requestAnimationFrame(roll);
+  };
+  requestAnimationFrame(roll);
   const g = sum.gains;
   s.appendChild(el('div', 'gain-list',
     `＋灰烬记忆 ${fmt(g.ash)}${g.nail ? ` ＋圣徒铁钉 ${g.nail}` : ''}${g.bone ? ` ＋堕翼骨片 ${g.bone}` : ''}${g.pollen ? ` ＋伊甸花粉 ${g.pollen}` : ''}${g.eye ? ` ＋黑日之瞳 ${g.eye}` : ''}`));
@@ -704,6 +785,8 @@ export function showResults(sum) {
     s.appendChild(el('div', 'gain-list', `☩ 新的躯体可被缝合：${CHAR_BY_ID[id].name}`));
   }
   if (META.mercy > 0 && !META.mercyOff) s.appendChild(el('div', 'sc-note', `棺中慈悲 ×${META.mercy}：下一局攻防+8%（可在设置关闭）`));
+  // gain lines stagger in one after another
+  [...s.querySelectorAll('.gain-list')].forEach((gl, i) => { gl.style.animationDelay = (0.3 + i * 0.14) + 's'; });
   s.appendChild(el('div', 'divider'));
   s.appendChild(btn('回到无灯旅店', hubScreen, 'btn primary'));
   s.appendChild(btn('再次出发', () => charSelect(), 'btn'));

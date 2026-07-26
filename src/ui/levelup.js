@@ -332,6 +332,10 @@ function renderCards(title, cards, h) {
   const wrap = document.createElement('div');
   wrap.className = 'cards-wrap fade-in';
   wrap.id = 'levelup-ui';
+  // one action per card set: the picked card flashes (.picked) for ~140ms before the
+  // original close logic runs; the flag blocks double-taps / stray clicks meanwhile.
+  // Automated sequential clicks are unaffected — the set is gone by the next poll.
+  let acted = false;
   const t = document.createElement('div');
   t.className = 'cards-title'; t.textContent = title;
   wrap.appendChild(t);
@@ -341,12 +345,23 @@ function renderCards(title, cards, h) {
     el.className = `upcard ${d.q}`;
     el.innerHTML = `<div class="ic"></div><div class="body"><div class="nm">${d.nm}<span class="lv">${d.lv}</span></div><div class="ds">${d.ds}</div>${d.fuse ? `<div class="fuse ${d.ready ? 'ready' : ''}">${d.fuse}</div>` : ''}</div><div class="tag">${d.tag}</div>`;
     el.querySelector('.ic').appendChild(cloneCanvas(d.ic));
-    el.addEventListener('click', () => { sfx.select(); h.onPick(c); });
+    el.addEventListener('click', () => {
+      if (acted) return;
+      acted = true;
+      el.classList.add('picked');
+      sfx.select();
+      setTimeout(() => h.onPick(c), 140);
+    });
     if (h.showBanish && (c.kind === 'weapon' || c.kind === 'catalyst')) {
       const bx = document.createElement('div');
       bx.style.cssText = 'position:absolute;bottom:6px;right:8px;font-size:10px;color:#49364F;letter-spacing:1px;padding:4px;';
       bx.textContent = '放逐 ✕';
-      bx.addEventListener('click', (ev) => { ev.stopPropagation(); h.onBanish(c); });
+      bx.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        if (acted) return;
+        acted = true;
+        h.onBanish(c);
+      });
       el.appendChild(bx);
     }
     wrap.appendChild(el);
@@ -356,13 +371,13 @@ function renderCards(title, cards, h) {
   if (h.showReroll) {
     const b = document.createElement('button');
     b.className = 'btn small ghost'; b.textContent = `重掷 (${G.player.rerolls})`;
-    b.addEventListener('click', h.onReroll);
+    b.addEventListener('click', () => { if (acted) return; acted = true; h.onReroll(); });
     row.appendChild(b);
   }
   if (h.showLock) {
     const b = document.createElement('button');
     b.className = 'btn small ghost'; b.textContent = '锁定本组';
-    b.addEventListener('click', () => h.onLock(cards));
+    b.addEventListener('click', () => { if (acted) return; acted = true; h.onLock(cards); });
     row.appendChild(b);
   }
   wrap.appendChild(row);
@@ -370,7 +385,7 @@ function renderCards(title, cards, h) {
     const sk = document.createElement('div');
     sk.className = 'skipbar';
     sk.textContent = '跳过——以血肉抵偿（恢复15%生命）';
-    sk.addEventListener('click', h.onSkip);
+    sk.addEventListener('click', () => { if (acted) return; acted = true; h.onSkip(); });
     wrap.appendChild(sk);
   }
   ui().appendChild(wrap);
