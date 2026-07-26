@@ -1,5 +1,5 @@
 // 角色罪技 — 10 unique active skills
-import { G, num, burst } from './state.js';
+import { G, num, burst, after } from './state.js';
 import { dealDamage, dealAreaDamage, applyStatus, healPlayer } from './combat.js';
 import { sfx } from '../audio.js';
 import { addShake, addFlash, hitStop } from '../engine.js';
@@ -53,7 +53,7 @@ export function castSin(p) {
         if (e.isBoss) { dealDamage(e, 300, { src: 'sin' }); continue; }
         n++;
         e.executedBySin = true;
-        dealDamage(e, e.hp / p.S.damage + 50, { noCrit: true, src: 'sin' });
+        dealDamage(e, e.hp / p.S.damage + 50, { noCrit: true, execute: true, src: 'sin' });
       }
       G.kingRavenT = 1.2;
       addFlash('#0B0A0C', 0.5);
@@ -64,10 +64,10 @@ export function castSin(p) {
       const targets = [...G.enemies].filter(e => !e.dead).sort((a, b) => b.hp - a.hp).slice(0, 6);
       let i = 0;
       for (const e of targets) {
-        setTimeout(() => {
-          if (e.dead || !G.active) return;
+        after(i * 0.12, () => {
+          if (e.dead) return;
           G.projs.push({ type: 'snipe', x: p.x, y: p.y, tx: e.x, ty: e.y, target: e, t: 0, life: 0.4, dmg: 120 });
-        }, i * 120);
+        });
         i++;
       }
       num(p.x, p.y - 24, '猎杀月', 'skill');
@@ -89,7 +89,7 @@ export function castSin(p) {
           dealDamage(e, 50, { src: 'sin' });
         }
       }
-      setTimeout(() => { p.sinExecute = false; }, 5200);
+      after(5.2, () => { p.sinExecute = false; });
       num(p.x, p.y - 24, '无罪宣判', 'skill');
       break;
     }
@@ -98,20 +98,19 @@ export function castSin(p) {
         if (e.dead || e.isBoss) continue;
         e.liftT = 1.0;
       }
-      setTimeout(() => {
-        if (!G.active) return;
+      after(1.0, () => {
         for (const e of G.enemies) {
           if (e.dead || e.isBoss) continue;
           dealDamage(e, 80, { noCrit: true, src: 'sin' });
         }
         addShake(10); sfx.bigbell();
-      }, 1000);
+      });
       if (G.boss && !G.boss.dead) dealDamage(G.boss, 250, { src: 'sin' });
       num(p.x, p.y - 24, '天门倒悬', 'skill');
       break;
     }
-    case 'noin': { // 删除三秒
-      const snap = p.snapshots && p.snapshots.find(s => G.time - s.t >= 3);
+    case 'noin': { // 删除三秒 — newest snapshot that is ≥3s old
+      const snap = p.snapshots && [...p.snapshots].reverse().find(s => G.time - s.t >= 3);
       if (snap) {
         p.x = snap.x; p.y = snap.y;
         p.hp = Math.min(p.S.maxHp, Math.max(p.hp, snap.hp));

@@ -5,7 +5,7 @@ import { initAudio, playMusic, sfx } from './audio.js';
 import { buildSprites } from './art/sprites.js';
 import { buildBackgrounds } from './art/backgrounds.js';
 import { loadMeta, saveMeta, META } from './meta/save.js';
-import { G, resetG } from './run/state.js';
+import { G, resetG, tickTimers, after as gAfter } from './run/state.js';
 import { createPlayer, updatePlayer, recomputeStats } from './run/player.js';
 import { updateSin } from './run/sins.js';
 import { updateWeapons, updateProjectiles } from './run/weapons_impl.js';
@@ -56,8 +56,15 @@ function startRun(opts) {
   p.hp = p.S.maxHp;
   G.phase = 'play';
   enterArea(opts.areaId || 'ashfield');
-  // 初始赐福 (memory tree)
-  if (META.nodes['m_bless']) setTimeout(() => openStartBless(), 600);
+  // 初始赐福 (memory tree) — retry until a safe moment
+  if (META.nodes['m_bless']) {
+    const tryBless = () => {
+      if (!G.active || G.time > 30) return;
+      if (G.phase !== 'play') { gAfter(0.5, tryBless); return; }
+      openStartBless();
+    };
+    gAfter(0.6, tryBless);
+  }
 }
 
 function doPause() {
@@ -86,9 +93,14 @@ function update(dt) {
   const gdt = dt * G.timeScale;
   G.time += gdt;
   // global timers
+  tickTimers(gdt);
   if (G.timeStopT > 0) G.timeStopT -= dt;
   if (G.reverseT > 0) G.reverseT -= dt;
   if (G.soulnetT > 0) G.soulnetT -= dt;
+  if (G.tempAtkT > 0) G.tempAtkT -= dt;
+  if (G.blackSunT > 0) G.blackSunT -= gdt;
+  if (G.ninthBellFx > 0) G.ninthBellFx -= gdt;
+  if (G.silenceT > 0) G.silenceT -= gdt;
   G.lsWindow = (G.lsWindow || 0) + dt;
   if (G.lsWindow >= 1) { G.lsWindow = 0; G.lsAcc = 0; }
   updatePlayer(G.player, gdt);

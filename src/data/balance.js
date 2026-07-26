@@ -15,8 +15,8 @@ export const BAL = {
   enemyAtk: (base, zoneMult, diffMult, t) => base * zoneMult * diffMult * (1 + 0.05 * t + 0.0025 * t * t),
   zoneMult: { ashfield: 1.0, cathedral: 1.15, bells: 1.35, tribunal: 1.5, hell: 1.75, fakeheaven: 2.05, trueheaven: 2.5, corpsesea: 2.8 },
   bossHp: { anlo: 18000, mimi: 90000, whale: 320000, rahshiel: 260000, margola: 1100000, lambking: 2600000, mother: 8500000 },
-  // screen pressure targets (max live enemies) by minute
-  pressure: t => t < 1 ? 30 : t < 7 ? 30 + (t - 1) * 13 : t < 14 ? 110 + (t - 7) * 12 : t < 21 ? 200 + (t - 14) * 20 : t < 30 ? 340 : 400,
+  // screen pressure targets (max live enemies) by minute — gentle first two minutes
+  pressure: t => t < 0.5 ? 12 : t < 2 ? 12 + (t - 0.5) * 12 : t < 7 ? 30 + (t - 2) * 15 : t < 14 ? 105 + (t - 7) * 13 : t < 21 ? 200 + (t - 14) * 20 : t < 30 ? 340 : 400,
   difficulties: {
     murmur: { name: '默祷', hp: 0.85, atk: 0.85, reward: 0.9 },
     pilgrim: { name: '朝圣', hp: 1.0, atk: 1.0, reward: 1.0 },

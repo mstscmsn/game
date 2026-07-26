@@ -11,7 +11,9 @@ import { sfx } from '../audio.js';
 import { addFlash, hitStop } from '../engine.js';
 
 const ui = () => document.getElementById('ui-root');
-let lockedCards = null;
+// locked card set lives on G so resetG clears it between runs
+const getLocked = () => G.lockedCards || null;
+const setLocked = (v) => { G.lockedCards = v; };
 
 /* =================== pool building =================== */
 function candidates() {
@@ -88,13 +90,17 @@ function rollCards(n) {
 function maxRelics(p) { return 3 + (p.relics.includes('sindice') ? 1 : 0); }
 
 /* =================== level up screen =================== */
-export function openLevelUp() {
-  if (G.phase !== 'play') return;
+export function openLevelUp(reopen = false) {
+  if (G.phase !== 'play' && !(reopen && G.phase === 'levelup')) return;
+  if (document.getElementById('levelup-ui')) return;
   G.phase = 'levelup';
   sfx.levelup();
   const p = G.player;
-  const cards = lockedCards || rollCards(3);
-  lockedCards = null;
+  // locked cards must still be valid for this run/character
+  let locked = getLocked();
+  if (locked && locked.some(c => (c.kind === 'weapon' && c.up && !p.weapons.some(w => w.id === c.id)) || (c.kind === 'catalyst' && c.up && !p.catalysts.some(x => x.id === c.id)))) locked = null;
+  const cards = locked || rollCards(3);
+  setLocked(null);
   renderCards('圣痕苏醒 — 抉择', cards, {
     showSkip: true, showReroll: p.rerolls > 0, showBanish: p.banishes > 0, showLock: !p.lockUsed,
     onPick: (c) => { applyCard(c); closeCards(); },
@@ -105,13 +111,13 @@ export function openLevelUp() {
       else healPlayer(v);
       closeCards();
     },
-    onReroll: () => { p.rerolls--; closeCards(false); openLevelUp(); },
+    onReroll: () => { p.rerolls--; closeCards(false); openLevelUp(true); },
     onBanish: (c) => {
       p.banishes--;
-      p.banished.push((c.kind === 'weapon' ? 'w:' : c.kind === 'catalyst' ? 'c:' : 'x:') + c.id);
-      closeCards(false); openLevelUp();
+      p.banished.push((c.kind === 'weapon' ? 'w:' : 'c:') + c.id);
+      closeCards(false); openLevelUp(true);
     },
-    onLock: (cs) => { p.lockUsed = true; lockedCards = cs; closeCards(); },
+    onLock: (cs) => { p.lockUsed = true; setLocked(cs); closeCards(); },
   });
 }
 
@@ -313,7 +319,7 @@ function renderCards(title, cards, h) {
     el.innerHTML = `<div class="ic"></div><div class="body"><div class="nm">${d.nm}<span class="lv">${d.lv}</span></div><div class="ds">${d.ds}</div>${d.fuse ? `<div class="fuse ${d.ready ? 'ready' : ''}">${d.fuse}</div>` : ''}</div><div class="tag">${d.tag}</div>`;
     el.querySelector('.ic').appendChild(cloneCanvas(d.ic));
     el.addEventListener('click', () => { sfx.select(); h.onPick(c); });
-    if (h.showBanish) {
+    if (h.showBanish && (c.kind === 'weapon' || c.kind === 'catalyst')) {
       const bx = document.createElement('div');
       bx.style.cssText = 'position:absolute;bottom:6px;right:8px;font-size:10px;color:#49364F;letter-spacing:1px;padding:4px;';
       bx.textContent = '放逐 ✕';

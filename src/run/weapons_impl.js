@@ -1,5 +1,5 @@
 // All weapon behaviors: 16 base, 16 evolved (artifact), 6 forbidden, projectile sim.
-import { G, num, burst, zone } from './state.js';
+import { G, num, burst, zone, after } from './state.js';
 import { BAL } from '../data/balance.js';
 import { WEAPON_BY_ID } from '../data/weapons.js';
 import { dealDamage, dealAreaDamage, applyStatus, healPlayer } from './combat.js';
@@ -10,6 +10,7 @@ import { angleTo, TAU, clamp } from '../core/util.js';
 const S = () => G.player.S;
 const FB = 10; // forbidden-weapon base damage unit
 
+const EVO_COOLDOWN = { bell: 6 };   // 万灵丧钟: 每六秒全屏鸣响 (docs §8)
 function wStat(w) {
   const def = WEAPON_BY_ID[w.id];
   const b = { ...def.base };
@@ -21,6 +22,7 @@ function wStat(w) {
   if (w.evolved) dmgMult *= BAL.artifactMult;
   if (w.purified) dmgMult *= 0.7;
   b.damage = (b.damage || 0) * dmgMult;
+  if (w.evolved && EVO_COOLDOWN[w.id]) b.cooldown = EVO_COOLDOWN[w.id];
   b.cooldown = (b.cooldown || 0) * (1 - S().cdr);
   return b;
 }
@@ -59,6 +61,19 @@ function densestPoint() {
 /* ============ per-frame weapon updates ============ */
 export function updateWeapons(dt) {
   const p = G.player;
+  // 破灭升天: dodging fires a radial feather-meteor storm
+  if (p.justDodged) {
+    p.justDodged = false;
+    const wb = p.weapons.find(w => w.id === 'wingblade' && w.evolved);
+    if (wb) {
+      const st = wStat(wb);
+      for (let i = 0; i < 12; i++) {
+        const a = i / 12 * TAU;
+        G.projs.push({ type: 'boomer', x: p.x, y: p.y, vx: Math.cos(a) * st.speed * 1.2, vy: Math.sin(a) * st.speed * 1.2, dmg: st.damage * 0.7, t: 0, life: 1.4, r: 10, back: false });
+      }
+      burst(p.x, p.y, 'rgba(238,235,221,0.8)', 10, 140, 0.4);
+    }
+  }
   for (const w of p.weapons) {
     const def = WEAPON_BY_ID[w.id];
     const st = wStat(w);
@@ -76,24 +91,30 @@ export function updateWeapons(dt) {
 
 function fireCount(extra = 0) { return 1 + (S().amount || 0) + extra; }
 
-// central fire dispatcher (handles echo effects)
+// central fire dispatcher (handles echo effects). Echo/mirror copies set
+// G.echoFire so per-shot counters (阳炮/无声末日) only advance on real fires.
 function fireWeapon(w, st, isEcho = false) {
   const p = G.player;
   FIRE[w.evolved ? 'evo_' + w.id : w.id](w, st);
   if (!isEcho) {
     p.lastWeaponFire = { id: w.id, evolved: w.evolved };
+    const echoFire = () => { G.echoFire = true; fireWeapon(w, st, true); G.echoFire = false; };
     // corlan passive: every 7th attack resonates
     if (p.char.id === 'corlan') {
       p.fireCount = (p.fireCount || 0) + 1;
-      if (p.fireCount % 7 === 0) setTimeout(() => G.active && fireWeapon(w, st, true), 120);
+      if (p.fireCount % 7 === 0) after(0.12, echoFire);
     }
     // corlan sin
-    if (G.echoAllT > 0) setTimeout(() => G.active && fireWeapon(w, st, true), 180);
+    if (G.echoAllT > 0) after(0.18, echoFire);
     // rahshiel char wing echo
-    if (p.wingEcho > 0) { p.wingEcho = 0; setTimeout(() => G.active && fireWeapon(w, st, true), 100); }
+    if (p.wingEcho > 0) { p.wingEcho = 0; after(0.1, echoFire); }
     // 无尽告解室 forbidden: 4 mirrors copy at 45%
     if (p.forbidden.includes('confessroom')) {
-      for (let i = 0; i < 4; i++) setTimeout(() => { if (G.active) { G.mirrorMult = 0.45; FIRE[w.evolved ? 'evo_' + w.id : w.id](w, st); G.mirrorMult = 1; } }, 60 + i * 60);
+      for (let i = 0; i < 4; i++) after(0.06 + i * 0.06, () => {
+        G.echoFire = true; G.mirrorMult = 0.45;
+        FIRE[w.evolved ? 'evo_' + w.id : w.id](w, st);
+        G.mirrorMult = 1; G.echoFire = false;
+      });
     }
   }
 }
@@ -188,10 +209,11 @@ const FIRE = {
       let da = Math.abs(((angleTo(p.x, p.y, e.x, e.y) - dir + TAU + Math.PI) % TAU) - Math.PI);
       if (da > arc / 2 && d > reach * 0.4) return;
       dealDamage(e, st.damage * M(), { src: 'chain', tags: ['chain'] });
-      // pull; feared targets pulled hard (公开处刑)
+      // pull toward whip range — never drag enemies into point-blank contact
       const pull = e.st.fear.t > 0 ? 220 : 60;
       const dd = d || 1;
-      e.kbx -= (e.x - p.x) / dd * pull; e.kby -= (e.y - p.y) / dd * pull;
+      if (dd > 95) { e.kbx -= (e.x - p.x) / dd * pull; e.kby -= (e.y - p.y) / dd * pull; }
+      else { e.kbx += (e.x - p.x) / dd * 70; e.kby += (e.y - p.y) / dd * 70; }
       if (e.st.fear.t > 0) num(e.x, e.y - e.r - 8, '公开处刑', 'combo');
       if (G.rng() < 0.3) applyStatus(e, 'fear');
     });
@@ -259,7 +281,7 @@ const FIRE = {
       G.projs.push({ type: 'boomer', x: p.x, y: p.y, vx: Math.cos(a) * st.speed * S().projSpeed, vy: Math.sin(a) * st.speed * S().projSpeed, dmg: st.damage * M(), t: 0, life: 1.6, r: 10, back: false });
     }
   },
-  evo_wingblade(w, st) { FIRE.wingblade(w, st); },
+  evo_wingblade(w, st) { FIRE.wingblade(w, st); },   // dodge meteor storm handled in updateWeapons
   /* —— 地狱火铳 —— */
   musket(w, st) {
     const p = G.player, t = nearestEnemy(p.x, p.y);
@@ -268,7 +290,7 @@ const FIRE = {
       const a = t ? angleTo(p.x, p.y, t.x, t.y) + (i ? (G.rng() - 0.5) * 0.2 : 0) : (p.facing > 0 ? 0 : Math.PI);
       G.projs.push({ type: 'bullet', x: p.x, y: p.y, sx: p.x, sy: p.y, vx: Math.cos(a) * st.speed * S().projSpeed, vy: Math.sin(a) * st.speed * S().projSpeed, dmg: st.damage * M(), t: 0, life: 1.3, r: 7, pierce: 999 });
     }
-    w.st.shots = (w.st.shots || 0) + 1;
+    if (!G.echoFire) w.st.shots = (w.st.shots || 0) + 1;
     noiseKick();
   },
   evo_musket(w, st) {
@@ -343,15 +365,14 @@ const FIRE = {
   },
   evo_harp(w, st) { // 无声末日
     FIRE.harp(w, st);
-    w.st.silCount = (w.st.silCount || 0) + 1;
-    if (w.st.silCount % 5 === 0) {
+    if (!G.echoFire) w.st.silCount = (w.st.silCount || 0) + 1;
+    if (!G.echoFire && w.st.silCount % 5 === 0) {
       G.silenceT = 1.2;
-      setTimeout(() => {
-        if (!G.active) return;
+      after(1.2, () => {
         sfx.bigbell(); addShake(10); addFlash('#EEEBDD', 0.5);
         dealAreaDamage(G.player.x, G.player.y, 400, st.damage * 4, { color: 'rgba(238,235,221,0.6)', src: 'silentend' });
         for (const e of G.enemies) if (!e.dead) applyStatus(e, 'fear');
-      }, 1200);
+      });
     }
   },
 };
@@ -384,7 +405,7 @@ function updateSaw(w, st, dt) {
       }
     }
   }
-  if (w.evolved && w.st.extraR < 70) w.st.extraR = Math.min(70, (w.st.extraR || 0) + G.kills * 0.0001);
+  if (w.evolved) w.st.extraR = Math.min(70, G.kills * 0.05);   // 击杀扩大血月轨道
 }
 function updateChalice(w, st, dt) {
   const p = G.player;
@@ -416,6 +437,7 @@ function updateCenser(w, st, dt) {
 }
 
 /* ============ helpers ============ */
+let uidSeq = 0;
 function hitCd(e, key, cd) {
   e.hitCds = e.hitCds || {};
   if ((e.hitCds[key] || 0) > G.time) return true;
@@ -451,8 +473,8 @@ export function updateForbidden(dt) {
             for (const e of G.enemies) {
               if (e.dead) continue;
               e.sunExposure = (e.sunExposure || 0) + 0.25;
-              if (!e.isElite && e.sunExposure > 1.5) { dealDamage(e, e.hp / S().damage + 5, { noCrit: true, src: 'blacksun' }); }
-              else if (e.isElite && e.hp < e.maxHp * 0.35) { e.executedBySin = true; dealDamage(e, e.hp / S().damage + 5, { noCrit: true, src: 'blacksun' }); num(e.x, e.y, '焚毁', 'combo'); }
+              if (!e.isElite && e.sunExposure > 1.5) { dealDamage(e, e.hp / S().damage + 5, { noCrit: true, execute: true, src: 'blacksun' }); }
+              else if (e.isElite && e.hp < e.maxHp * 0.35) { e.executedBySin = true; dealDamage(e, e.hp / S().damage + 5, { noCrit: true, execute: true, src: 'blacksun' }); num(e.x, e.y, '焚毁', 'combo'); }
               else dealDamage(e, FB * 8 * dmgMul / S().damage * 0.25, { isDot: true, src: 'blacksun' });
             }
             if (G.boss && !G.boss.dead) {
@@ -469,21 +491,20 @@ export function updateForbidden(dt) {
         if (st.cd <= 0) {
           st.cd = 24 * hunger;
           G.silenceT = 0.8;
-          setTimeout(() => {
-            if (!G.active) return;
+          after(0.8, () => {
             sfx.bigbell(); addShake(14); addFlash('#EEEBDD', 0.7); hitStop(0.35);
             G.timeStopT = 2.5; G.ninthBellFx = 2.5;
             G.eprojs.length = 0;   // shatter enemy projectiles
             for (const e of [...G.enemies]) {
               if (e.dead) continue;
-              if (!e.isElite) dealDamage(e, e.hp / S().damage + 10, { noCrit: true, src: 'ninthbell' });
+              if (!e.isElite) dealDamage(e, e.hp / S().damage + 10, { noCrit: true, execute: true, src: 'ninthbell' });
               else dealDamage(e, FB * 24 * dmgMul / S().damage, { src: 'ninthbell' });
             }
             if (G.boss && !G.boss.dead) {
               const cap = G.boss.maxHp * 0.1;
               dealDamage(G.boss, Math.min(cap, G.boss.hp * 0.08) / S().damage, { noCrit: true, src: 'ninthbell' });
             }
-          }, 800);
+          });
         }
         break;
       }
@@ -614,21 +635,26 @@ export function updateProjectiles(dt) {
         const k = pr.t / pr.life;
         pr.cx = pr.x + (pr.tx - pr.x) * k;
         pr.cy = pr.y + (pr.ty - pr.y) * (k * k);
-        if (pr.t + dt > pr.life) {
+        if (!pr.applied && pr.t + dt > pr.life) {
+          pr.applied = true;
           dealAreaDamage(pr.tx, pr.ty, pr.r, pr.dmg, { color: 'rgba(11,10,12,0.7)', src: 'raven' });
         }
         break;
       }
       case 'tombstone': {
         if (pr.target && !pr.target.dead) { pr.tx = pr.target.x; pr.ty = pr.target.y; }
-        if (pr.t + dt > pr.life) {
+        if (!pr.applied && pr.t + dt > pr.life) {
+          pr.applied = true;
           dealAreaDamage(pr.tx, pr.ty, pr.r, pr.dmg, { color: 'rgba(216,199,164,0.6)', src: 'bow' });
           addShake(2);
         }
         break;
       }
       case 'arrowRain': {
-        if (pr.t + dt > pr.life) dealAreaDamage(pr.x, pr.y + 200, pr.r, pr.dmg, { color: 'rgba(216,199,164,0.5)', src: 'bow', fx: false });
+        if (!pr.applied && pr.t + dt > pr.life) {
+          pr.applied = true;
+          dealAreaDamage(pr.x, pr.y + 200, pr.r, pr.dmg, { color: 'rgba(216,199,164,0.5)', src: 'bow', fx: false });
+        }
         break;
       }
       case 'spine': case 'blackbeam': case 'sunbeam': {
@@ -701,12 +727,20 @@ function hitAlong(pr, optsFn) {
       if (pr.pierce < 0) { pr.dead = true; }
     }
   });
-  // boss hits
+  // boss hits — per-projectile once semantics (volley amounts must all land)
   const b = G.boss;
   if (b && !b.dead && (b.x - pr.x) ** 2 + (b.y - pr.y) ** 2 < (pr.r + b.r) ** 2) {
-    if (!hitCd(b, pr.type, 0.25)) {
-      const o = optsFn(b) || {};
+    const o = optsFn(b) || {};
+    let ok;
+    if (o.repeatCd) ok = !hitCd(b, pr.type + ':' + (pr.uid || (pr.uid = ++uidSeq)), o.repeatCd);
+    else {
+      pr.hitIds = pr.hitIds || new Set();
+      ok = !pr.hitIds.has('boss');
+      if (ok) pr.hitIds.add('boss');
+    }
+    if (ok) {
       dealDamage(b, pr.dmg * (o.dmgMul || 1), { src: pr.type, tags: o.tags || pr.tags });
+      if (pr.pierce !== undefined && pr.pierce !== 999) { pr.pierce--; if (pr.pierce < 0) pr.dead = true; }
     }
   }
   if (pr.dead) { const idx = G.projs.indexOf(pr); if (idx >= 0) G.projs.splice(idx, 1); }

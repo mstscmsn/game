@@ -12,7 +12,7 @@ export const META = {
   bestTime: 0, totalKills: 0,
   stats: { rotKills: 0, cursedClear: 0, bossRangeKill: 0, prayers: 0, eliteExec: 0, tribunalWins: 0 },
   unlockedChars: ['adric', 'evlann'],
-  unlockedDifficulty: 1,   // index into difficulty list
+  unlockedDifficulty: 2,   // count of unlocked difficulty tiers (默祷+朝圣 from the start)
   seenWeapons: [], seenArtifacts: [], seenForbidden: [],
   confessionsFound: [],    // story confession ids
   saintConfessions: [],    // s1..s7
@@ -39,6 +39,8 @@ export function loadMeta() {
       deepMerge(META, d);
     }
   } catch (e) { console.warn('save load failed', e); }
+  // migrations
+  META.unlockedDifficulty = Math.max(META.unlockedDifficulty || 0, 2);
   return META;
 }
 export function saveMeta() {

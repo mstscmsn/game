@@ -12,9 +12,11 @@ const S = () => G.player.S;
 // opts: {src, tags:[], noCrit, forcedCrit, isDot, statusChance}
 export function dealDamage(e, base, opts = {}) {
   if (!e || e.dead || e.spawning > 0) return 0;
+  if (e.isBoss && e.invulnT > 0) return 0;      // 阶段转换 0.8s 无敌 (docs §14.4)
   const p = G.player;
   let dmg = base * S().damage;
   if (G.duskBuff) dmg *= G.duskBuff;
+  if (G.tempAtkT > 0) dmg *= 1.25;               // 禁止治疗词缀的临时攻击力
   // 封口针
   if (p.relics.includes('sealneedle') && p.standT >= 2) dmg *= 1.4;
   // 空白圣经
@@ -30,8 +32,8 @@ export function dealDamage(e, base, opts = {}) {
     dmg *= S().dotMult;
     if (e.st.rot.t > 0) dmg *= 1.35;      // 腐烂: dots amplified
   }
-  // enemy armor
-  if (e.armor) dmg *= (1 - Math.min(0.6, e.armor / (e.armor + 100)));
+  // enemy armor (execution-type damage ignores it)
+  if (e.armor && !opts.execute) dmg *= (1 - Math.min(0.6, e.armor / (e.armor + 100)));
   dmg = Math.max(1, Math.round(dmg));
   e.hp -= dmg;
   G.dmgDealt += dmg;
@@ -54,7 +56,10 @@ export function dealDamage(e, base, opts = {}) {
     }
     if (best) dealDamage(best, over / S().damage, { ...opts, noPierceBehind: true, isDot: false });
   }
-  if (e.hp <= 0) killEnemy(e, opts);
+  if (e.hp <= 0) {
+    if (!e.isBoss) killEnemy(e, opts);
+    // bosses: leave hp<=0 for updateBoss → killBoss (rewards, flow continuation)
+  }
   else if (opts.knock && !e.isBoss) {
     const kmul = 1 + (e.st.fear.t > 0 ? 0.8 : 0);
     const d = Math.hypot(e.x - p.x, e.y - p.y) || 1;
@@ -71,6 +76,8 @@ export function dealAreaDamage(x, y, r, base, opts = {}) {
     const er = e.r + rr;
     if ((e.x - x) ** 2 + (e.y - y) ** 2 <= er * er) dealDamage(e, base, opts);
   });
+  const b = G.boss;
+  if (b && !b.dead && (b.x - x) ** 2 + (b.y - y) ** 2 <= (b.r + rr) ** 2) dealDamage(b, base, opts);
   if (opts.fx !== false) burst(x, y, opts.color || 'rgba(212,71,79,0.7)', Math.min(14, 4 + r / 20), r * 1.5, 0.4, 3);
 }
 
@@ -94,8 +101,8 @@ export function applyStatus(e, type, power = 1) {
       break;
     case 'rot':
       st.rot.t = 5;
-      e.armor = Math.min(e.armor || 0, 0); // armor shred
-      if (st.sin.s >= 5) triggerBlasphemyBloom(e);
+      if (!e.isBoss) e.armor = Math.min(e.armor || 0, 0); // armor shred (bosses keep phase armor)
+      if (st.sin.s >= 4) { st.sin.s = 0; triggerBlasphemyBloom(e); }  // 腐烂+罪印 → 亵渎绽放
       break;
     case 'sin':
       st.sin.s++;
@@ -158,12 +165,12 @@ export function killEnemy(e, opts = {}) {
   if (e.dead) return;
   e.dead = true;
   const p = G.player;
-  G.kills++;
-  // 迟来的死亡 affix
+  // 迟来的死亡 affix (delayed pop — don't double-count the kill)
   if (G.affixes.includes('latedeath') && !e.lateDone) {
     e.dead = false; e.lateDone = true; e.dying = 2; e.hp = 1;
     return;
   }
+  G.kills++;
   sfx.kill();
   burst(e.x, e.y, e.isElite ? 'rgba(212,71,79,0.8)' : 'rgba(216,199,164,0.55)', e.isElite ? 12 : 5, 80, 0.4, e.isElite ? 4 : 3);
   // ledger relic
@@ -197,7 +204,7 @@ export function killEnemy(e, opts = {}) {
   }
   // drops
   dropLoot(e);
-  if (e.isElite) {
+  if (e.isElite && !e.womb) {
     G.eliteKills++;
     sfx.eliteKill();
     hitStop(0.12); addShake(3);
@@ -205,7 +212,8 @@ export function killEnemy(e, opts = {}) {
     if (p.relics.includes('widowring')) healPlayer(p.S.maxHp * 0.2);
     // elite chest chance
     if (G.rng() < 0.22 + S().luck * 0.3) G.pickups.push({ type: 'chest', x: e.x, y: e.y, t: 0 });
-    // vielna sin counts
+  } else if (e.womb) {
+    sfx.eliteKill(); addShake(2);
   }
   if (e.isBoss) { /* handled by bosses.js */ }
   // sin charge
@@ -222,15 +230,20 @@ function dropLoot(e) {
   const p = G.player;
   let v = e.xp || (e.isElite ? 25 : 2 + Math.floor(G.time / 240));
   if (G.affixes.includes('moonless')) v *= 2;
-  // merge gems when too many
+  // merge gems when too many — into the gem nearest to the dying enemy
   if (G.pickups.length > 130) {
-    // find nearest gem and add
-    let g = null;
-    for (let i = G.pickups.length - 1; i >= 0; i--) if (G.pickups[i].type === 'gem') { g = G.pickups[i]; break; }
+    let g = null, gd = Infinity;
+    for (let i = G.pickups.length - 1, seen = 0; i >= 0 && seen < 40; i--) {
+      const k = G.pickups[i];
+      if (k.type !== 'gem') continue;
+      seen++;
+      const d2 = (k.x - e.x) ** 2 + (k.y - e.y) ** 2;
+      if (d2 < gd) { gd = d2; g = k; }
+    }
     if (g) { g.v += v; g.tier = g.v > 40 ? 3 : g.v > 12 ? 2 : 1; return; }
   }
   G.pickups.push({ type: 'gem', x: e.x + G.rng() * 10 - 5, y: e.y + G.rng() * 10 - 5, v, tier: v > 40 ? 3 : v > 12 ? 2 : 1, t: 0 });
-  if (G.rng() < 0.012) G.pickups.push({ type: 'heart', x: e.x, y: e.y, v: 12, t: 0 });
+  if (G.rng() < 0.018) G.pickups.push({ type: 'heart', x: e.x, y: e.y, v: 14, t: 0 });
   if (G.areaId === 'hell' && G.rng() < 0.02) G.pickups.push({ type: 'fruit', x: e.x, y: e.y, t: 0 });
 }
 

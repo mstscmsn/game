@@ -1,10 +1,10 @@
 // Area bosses with phase scripts.
-import { G, num, burst, zone } from './state.js';
+import { G, num, burst, zone, after } from './state.js';
 import { BAL } from '../data/balance.js';
 import { STORY } from '../data/story.js';
 import { META, saveMeta } from '../meta/save.js';
 import { freshStatus, playerHurt, dealDamage } from './combat.js';
-import { spawnEnemy } from './spawner.js';
+import { spawnEnemy, tickStatusesFor } from './spawner.js';
 import { angleTo, TAU, clamp } from '../core/util.js';
 import { sfx } from '../audio.js';
 import { addShake, addFlash, hitStop } from '../engine.js';
@@ -43,6 +43,8 @@ export function updateBoss(dt) {
   const p = G.player;
   b.t += dt;
   if (b.invulnT > 0) b.invulnT -= dt;
+  tickStatusesFor(b, dt);          // 流血/灼烧/腐烂等状态对 Boss 正常结算
+  if (b.dead) return;
   if (G.timeStopT > 0) return;
   // stay near player
   const d = Math.hypot(p.x - b.x, p.y - b.y) || 1;
@@ -60,8 +62,8 @@ export function updateBoss(dt) {
   }
   b.patT -= dt * b.atkSpeed;
   BOSS_AI[b.id] && BOSS_AI[b.id](b, p, dt);
-  // touch damage
-  if (Math.hypot(p.x - b.x, p.y - b.y) < b.r + p.r) playerHurt(p, b.dmg);
+  // touch damage (not while submerged/invisible)
+  if (!b.invisible && Math.hypot(p.x - b.x, p.y - b.y) < b.r + p.r) { G.lastHitBy = 'Boss'; playerHurt(p, b.dmg); }
   if (b.hp <= 0 && !b.dead) killBoss(b);
 }
 
@@ -73,7 +75,7 @@ function ringShot(b, n, speed, dmg, offset = 0) {
 }
 function warnZone(x, y, r, dps, delay = 1.1, life = 1.5, color = 'rgba(212,71,79,0.28)') {
   zone({ kind: 'warn', x, y, r, life: delay, dps: 0, color: 'rgba(212,71,79,0.16)', hostile: false, warnOnly: true });
-  setTimeout(() => { if (G.active) zone({ kind: 'bossz', x, y, r, life, dps, color, hostile: true }); }, delay * 1000);
+  after(delay, () => zone({ kind: 'bossz', x, y, r, life, dps, color, hostile: true }));
 }
 
 const BOSS_AI = {
@@ -201,7 +203,7 @@ const BOSS_AI = {
       for (let i = 0; i < (b.phase === 1 ? 2 : 3); i++) {
         const a = G.rng() * TAU;
         const womb = spawnEnemy('furnacewalker', b.x + Math.cos(a) * 160, b.y + Math.sin(a) * 160, true);
-        if (womb) { womb.womb = true; womb.speed = 6; womb.hp = womb.maxHp = womb.maxHp * 0.5; b.wombs.push(womb); }
+        if (womb) { womb.womb = true; womb.speed = 6; womb.hp = womb.maxHp = womb.maxHp * 0.5; womb.xp = 8; b.wombs.push(womb); }
       }
       num(b.x, b.y - 70, '胎炉运转——摧毁它们！', 'warn');
     }

@@ -28,8 +28,9 @@ export function initInput() {
     e.preventDefault();
     input.anyTouch = true;
     const p = toUI(e);
-    // buttons?
-    for (const [name, b] of Object.entries(input.btns)) {
+    // buttons — skill checked before dodge (their hit zones can overlap)
+    for (const name of ['pause', 'skill', 'dodge']) {
+      const b = input.btns[name];
       if (!b) continue;
       const dx = p.x - b.x, dy = p.y - b.y;
       if (dx * dx + dy * dy < b.r * b.r * 1.45) {

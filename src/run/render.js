@@ -389,7 +389,6 @@ function drawOverlays(ctx) {
     ctx.beginPath(); ctx.arc(w / 2, h * 0.16, 54, 0, TAU); ctx.fill();
     ctx.strokeStyle = '#D4474F'; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(w / 2, h * 0.16, 57, 0, TAU); ctx.stroke();
-    G.blackSunT -= 1 / 60;
   }
   // ninth bell time stop
   if (G.ninthBellFx > 0) {
@@ -397,7 +396,6 @@ function drawOverlays(ctx) {
     ctx.fillRect(0, 0, w, h);
     ctx.strokeStyle = 'rgba(216,199,164,0.5)'; ctx.lineWidth = 6;
     ctx.beginPath(); ctx.arc(w / 2, -h * 0.4, h * 0.9, 0.3, Math.PI - 0.3); ctx.stroke();
-    G.ninthBellFx -= 1 / 60;
   }
   // blood sea
   if (G.bloodSeaFx) {
@@ -409,7 +407,6 @@ function drawOverlays(ctx) {
   if (G.silenceT > 0) {
     ctx.fillStyle = `rgba(238,235,221,${0.06})`;
     ctx.fillRect(0, 0, w, h);
-    G.silenceT -= 1 / 60;
   }
   // knell approach: bleeding clock frame in last minute handled in HUD
   // screen flash

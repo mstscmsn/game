@@ -32,6 +32,8 @@ export function createPlayer(charId) {
     protect: 0,                 // 初醒保护 seconds remaining
     standT: 0,                  // 封口针 stillness timer
     tearlessT: 0,
+    permMaxHpMult: 1,           // permanent penalties survive stat recompute
+    permCurse: 0,
     S: null,                    // computed stats
     kbx: 0, kby: 0,
     trailT: 0,
@@ -122,11 +124,14 @@ export function recomputeStats(p) {
   if (b.magnet) S.pickup *= (1 + 0.15 * b.magnet);
   if (b.crit) S.crit += 0.05 * b.crit;
   if (b.armor) S.armor += 3 * b.armor;
+  // permanent in-run penalties (tearless hp loss, umbilical/hellfruit curse)
+  S.maxHp *= (p.permMaxHpMult || 1);
+  S.curse = (S.curse || 0) + (p.permCurse || 0);
   // 棺中慈悲 mercy layers
   if (META.mercy > 0 && !META.mercyOff) S.damage *= (1 + 0.08 * META.mercy);
-  // run guarantees for runs 2/3 (docs §11.4) — visible teaching blessings
+  // run guarantees (docs §11.4) — visible teaching blessings for runs 2 & 3 only
   if (META.runs === 1) { S.maxHp += 15; S.pickup *= 1.2; }
-  if (META.runs >= 2) { S.damage *= 1.12; S.xp *= 1.10; }
+  if (META.runs === 2) { S.damage *= 1.12; S.xp *= 1.10; }
   // kill ledger
   if (G.killLedgerBonus) S.damage *= (1 + G.killLedgerBonus);
   // caps
@@ -199,6 +204,7 @@ export function tryDodge(p) {
   burst(p.x, p.y, 'rgba(216,199,164,0.5)', 5, 60, 0.3, 2);
   // rahshiel character: wing echo
   if (p.char.id === 'rahshiel') p.wingEcho = 1;
+  p.justDodged = true;     // 破灭升天 meteor storm hook
   return true;
 }
 
@@ -229,7 +235,7 @@ export function playerHurt(p, amount, opts = {}) {
   G.dmgTaken += dmg;
   if (!opts.execution) {
     p.hurtInvT = p.S.hurtInv;
-    if (p.relics && p.relics.includes('tearless')) { p.tearlessT = 2; p.S.maxHp = Math.max(10, Math.round(p.S.maxHp * 0.99)); }
+    if (p.relics && p.relics.includes('tearless')) { p.tearlessT = 2; p.permMaxHpMult *= 0.99; recomputeStats(p); }
     sfx.hurt(); addShake(4); addFlash('#8E1F2F', 0.25);
     // adric: coffin armor thresholds
     if (p.char.id === 'adric') {
@@ -258,7 +264,8 @@ export function playerHurt(p, amount, opts = {}) {
     // relic revive
     if (!opts.execution && p.relics.includes('umbilical') && !p.reviveUsed) {
       p.reviveUsed = true; p.hp = Math.round(p.S.maxHp * 0.5); p.invT = 2;
-      p.S.curse = (p.S.curse || 0) + 0.25;
+      p.permCurse += 0.25;
+      recomputeStats(p);
       num(p.x, p.y - 20, '逆生', 'text');
       return;
     }

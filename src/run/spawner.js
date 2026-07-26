@@ -45,7 +45,8 @@ window.__SPAWN = spawnEnemy;
 function spawnPos() {
   const p = G.player;
   const a = G.rng() * TAU;
-  const d = 480 + G.rng() * 120;
+  // spawn just outside view early on, closer as pressure rises
+  const d = (G.time < 120 ? 560 : 490) + G.rng() * 120;
   return { x: p.x + Math.cos(a) * d, y: p.y + Math.sin(a) * d };
 }
 
@@ -60,7 +61,13 @@ export function updateSpawner(dt) {
   const interval = Math.max(0.12, 0.7 - G.time / 60 * 0.02);
   while (G.spawnAcc > interval && G.enemies.length < budget) {
     G.spawnAcc -= interval;
-    const pickArr = table.map(([id, w]) => ({ id, w }));
+    // opening minutes lean on slow chasers so early pressure reads as a wall,
+    // not as untrackable fast swarms (docs: 前90秒压迫但可活)
+    const early = G.time < 150 && G.mode !== 'endless';
+    const pickArr = table.map(([id, w]) => {
+      const b = ENEMIES[id].behavior;
+      return { id, w: early && (b === 'swarm' || b === 'dart' || b === 'shoot') ? w * 0.3 : w };
+    });
     const pick = weightedPick(G.rng, pickArr);
     const pos = spawnPos();
     spawnEnemy(pick.id, pos.x, pos.y, false);
@@ -74,7 +81,7 @@ export function updateSpawner(dt) {
       const pick = weightedPick(G.rng, table.map(([id, w]) => ({ id, w })));
       const pos = spawnPos();
       const e = spawnEnemy(pick.id, pos.x, pos.y, true);
-      if (e) num(e.x, e.y - 30, '精英出现', 'warn');
+      if (e && !G.player.relics.includes('closedeye')) num(e.x, e.y - 30, '精英出现', 'warn');
     }
   }
   updateAreaEvents(dt);
@@ -165,14 +172,18 @@ export function updateEnemies(dt) {
         }
       });
     }
-    // touch player
-    if (d < e.r + p.r) playerHurt(p, e.dmg);
+    // touch player — hit bumps the attacker back so enemies can't stay glued on
+    if (d < e.r + p.r) {
+      G.lastHitBy = e.def.name;
+      playerHurt(p, e.dmg);
+      if (!e.isElite) { e.kbx += (e.x - p.x) / d * 170; e.kby += (e.y - p.y) / d * 170; }
+    }
     // too far → wrap to other side
     if (d > 1500) { const np = spawnPos(); e.x = np.x; e.y = np.y; }
   }
 }
 
-function tickStatusesFor(e, dt) {
+export function tickStatusesFor(e, dt) {
   // imported inline to avoid circulars in hot path
   const st = e.st;
   if (e.boilT > 0) e.boilT -= dt;
@@ -201,13 +212,24 @@ export function updateEnemyProjs(dt) {
     if (G.timeStopT > 0) continue;
     if (pr.type === 'shot' || pr.type === 'glyph') {
       pr.x += pr.vx * dt; pr.y += pr.vy * dt;
-      // 逆流 affix: bounce back once near player
-      if (G.affixes.includes('backflow') && !pr.flipped) {
-        const d2 = (p.x - pr.x) ** 2 + (p.y - pr.y) ** 2;
-        if (d2 < 90 * 90) { pr.flipped = true; pr.vx *= -1; pr.vy *= -1; }
-      }
       const d2 = (p.x - pr.x) ** 2 + (p.y - pr.y) ** 2;
-      if (d2 < (pr.r + p.r) ** 2) { playerHurt(p, pr.dmg); G.eprojs.splice(i, 1); }
+      // 逆流 affix: shots that missed come back once
+      if (G.affixes.includes('backflow') && !pr.flipped) {
+        if (pr.lastD2 !== undefined && d2 > pr.lastD2 && d2 > 130 * 130) {
+          pr.flipped = true;
+          const d = Math.sqrt(d2) || 1;
+          const sp = Math.hypot(pr.vx, pr.vy);
+          pr.vx = (p.x - pr.x) / d * sp; pr.vy = (p.y - pr.y) / d * sp;
+          pr.life = Math.min(pr.life, pr.t + 2);
+        }
+        pr.lastD2 = d2;
+      }
+      if (d2 < (pr.r + p.r) ** 2) {
+        G.lastHitBy = pr.charm ? '白羊之王' : '弹幕';
+        playerHurt(p, pr.dmg);
+        if (pr.charm) G.obedience = Math.min(100, G.obedience + 8);   // 魅惑弹加顺从
+        G.eprojs.splice(i, 1);
+      }
     }
   }
 }
@@ -260,6 +282,8 @@ export function updatePickups(dt) {
       k.x += (p.x - k.x) / d * sp * dt; k.y += (p.y - k.y) / d * sp * dt;
     }
     if (d2 < (p.r + 14) ** 2) {
+      // chests/gifts stay on the floor during the tribunal — no UI interrupts there
+      if (G.phase === 'tribunal' && (k.type === 'chest' || k.type === 'gift')) continue;
       G.pickups.splice(i, 1);
       collect(k);
     } else if (k.type !== 'gem' && k.life && k.t > k.life) {
@@ -282,7 +306,7 @@ function collect(k) {
         () => { p.boosts.cdr = (p.boosts.cdr || 0) + 2; num(p.x, p.y - 20, '地狱果实：冷却-8%', 'text'); },
       ];
       buffs[(G.rng() * buffs.length) | 0]();
-      p.S.curse = (p.S.curse || 0) + 0.05;
+      p.permCurse += 0.05;
       recomputeStats(p);
       sfx.chest();
       break;
@@ -292,7 +316,9 @@ function collect(k) {
       if (c) {
         if (!META.confessionsFound.includes(c.id)) META.confessionsFound.push(c.id);
         if (/^s\d$/.test(c.id) && !META.saintConfessions.includes(c.id)) META.saintConfessions.push(c.id);
-        if (c.title.includes('童') || c.title.includes('孩')) META.stats.prayers = Math.min(7, (META.stats.prayers || 0) + 1);
+        // 儿童祷文 for mina's unlock — a fixed set of child-voiced confessions
+        const CHILD_PRAYERS = ['c03', 'c04', 'c09', 'c13', 'c14', 'c17', 'c52'];
+        META.stats.prayers = CHILD_PRAYERS.filter(id => META.confessionsFound.includes(id)).length;
         G.confessionsThisRun.push(c.id);
         saveMeta();
         window.__TOAST && window.__TOAST(c.title, c.text);
@@ -486,14 +512,16 @@ function updateAreaEvents(dt) {
   // obstacles: break under player weapon fire (approx: nearby projectiles chew them)
   for (const o of G.obstacles) {
     if (o.dead) continue;
+    if (o.kind === 'tower') continue;    // bell-shadow towers are indestructible
     for (const pr of G.projs) {
       if ((pr.x - o.x) ** 2 + (pr.y - o.y) ** 2 < (o.r + 14) ** 2) { o.hp -= 12; break; }
     }
     if (o.hp <= 0) { o.dead = true; burst(o.x, o.y, 'rgba(143,133,112,0.7)', 8, 90, 0.4); if (G.areaId === 'ashfield' && G.rng() < 0.3) G.pickups.push({ type: 'gem', x: o.x, y: o.y, v: 5, tier: 1, t: 0 }); }
   }
-  // 白昼病 affix
+  // 白昼病 affix — stillness in the light breeds obedience
   if (G.affixes.includes('daysick') && G.areaId !== 'fakeheaven') {
-    G.obedience = Math.min(100, G.obedience + dt * 0.5);
+    if (!p.moving) G.obedience = Math.min(100, G.obedience + dt * 2.2);
+    else G.obedience = Math.max(0, G.obedience - dt * 0.5);
     if (G.obedience >= 100) { G.obedience = 0; playerHurt(p, p.S.maxHp * 0.2); num(p.x, p.y - 30, '白昼病发作', 'warn'); }
   }
 }

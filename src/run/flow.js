@@ -1,6 +1,6 @@
 // Run flow: pilgrimage timeline, the Reaper execution, tribunal, hell revival,
 // fake-heaven obedience ending, final choice, endless loops, results.
-import { G, num, burst } from './state.js';
+import { G, num, burst, after } from './state.js';
 import { BAL } from '../data/balance.js';
 import { AREAS, PILGRIMAGE, ENDLESS_AFFIXES } from '../data/areas.js';
 import { STORY } from '../data/story.js';
@@ -25,7 +25,6 @@ export function enterArea(areaId, opts = {}) {
   document.body.classList.toggle('heaven-skin', areaId === 'fakeheaven');
   if (areaId === 'fakeheaven') G.obedience = 0;
   if (areaId === 'hell' && (META.nodes['d_freeup'] || 0) > 0) G.freeArtifactUpgrade = 1;
-  if (areaId === 'trueheaven') setTimeout(() => { if (G.active && !G.ended) showPurifyChoice(); }, 4500);
 }
 
 /* ============== per-frame timeline check ============== */
@@ -44,8 +43,14 @@ export function updateFlow(dt) {
         if (t >= at && G.areaId !== id && ['ashfield', 'cathedral', 'bells'].includes(id) && orderOf(id) > orderOf(G.areaId)) enterArea(id);
       }
     } else if (G.revived) {
-      if (t >= 1800 && G.areaId === 'hell') enterArea('fakeheaven');
-      if (t >= 2280 && G.areaId === 'fakeheaven' && !G.boss) maybeLeaveFakeHeaven();
+      if (t >= 1800 && G.areaId === 'hell' && !G.boss) enterArea('fakeheaven');
+      // fake heaven cannot be skipped in a single frame: require dwelling time
+      if (t >= 2280 && G.areaId === 'fakeheaven' && !G.boss && t - G.areaEnteredAt > 60) maybeLeaveFakeHeaven();
+      // 净化祭坛：等待一个安全时机（play 且持有禁器）
+      if (G.areaId === 'trueheaven' && !G.purifyOffered && G.player.forbidden.length > 0 && G.time - G.areaEnteredAt > 4) {
+        G.purifyOffered = true;
+        showPurifyChoice();
+      }
     }
     // boss spawns
     const area = AREAS[G.areaId];
@@ -72,8 +77,13 @@ export function updateFlow(dt) {
       num(G.player.x, G.player.y - 40, `世界层 ${loop + 1}：${affix.name}`, 'warn');
       toastLines('腐化词缀', `${affix.name}——${affix.desc}`);
       G.runResources.eye += 1;
-      // 永恒抉择: strong boon
-      import('../ui/levelup.js').then(m => m.openEternalChoice());
+      // 永恒抉择: strong boon — waits for a safe moment
+      const tryEternal = () => {
+        if (!G.active || G.ended) return;
+        if (G.phase !== 'play') { after(1, tryEternal); return; }
+        import('../ui/levelup.js').then(m => m.openEternalChoice());
+      };
+      after(0.5, tryEternal);
     }
   }
 }
@@ -137,6 +147,7 @@ export function onPlayerDeath(opts = {}) {
   } else {
     // ordinary death
     META.lastDeathBy = G.lastHitBy || '未知';
+    META.deathsBy[META.lastDeathBy] = (META.deathsBy[META.lastDeathBy] || 0) + 1;
     endRun(false, '死亡');
   }
 }
@@ -157,7 +168,7 @@ export function startTribunal() {
   let tt = BAL.tribunalTime + extraTime;
   if (p.relics.includes('deathwatch')) tt -= 20;
   G.tribunal = { timeLeft: tt, healPenalty: 0.5 };
-  G.enemies.length = 0; G.eprojs.length = 0; G.projs.length = 0;
+  G.enemies.length = 0; G.eprojs.length = 0; G.projs.length = 0; G.pickups.length = 0; G.zones.length = 0;
   G.areaId = 'tribunal'; G.area = AREAS.tribunal;
   setupArea('tribunal');
   playMusic('tribunal');
@@ -205,14 +216,16 @@ export function onBossKilled(id) {
     return;
   }
   if (id === 'margola') {
-    // 地狱新王 choice: sit the iron throne
-    setTimeout(() => {
+    // 地狱新王 choice: sit the iron throne — retries until a safe moment
+    const tryShow = () => {
       if (!G.active || G.ended) return;
+      if (G.phase !== 'play') { after(1.5, tryShow); return; }
       import('../ui/screens.js').then(m => m.showThroneChoice({
         onSit: () => triggerEnding('hellking'),
         onLeave: () => { toastLines('', '你背过王座。前方是伪造的光。'); },
       }));
-    }, 1500);
+    };
+    after(1.5, tryShow);
   }
   if (id === 'lambking') {
     setTimeout(() => { if (G.active && !G.ended && G.areaId === 'fakeheaven') maybeLeaveFakeHeaven(); }, 2000);
@@ -293,20 +306,21 @@ export function endRun(victory, reason) {
     const idx = order.indexOf(G.difficulty);
     META.unlockedDifficulty = Math.max(META.unlockedDifficulty, Math.min(4, idx + 2));
   }
-  // 棺中慈悲: died before 12min → mercy stack
-  if (!victory && G.time < 720 && !G.executed) META.mercy = Math.min(2, META.mercy + 1);
-  if (G.executed || victory) META.mercy = 0;
-  if (META.mercyOff) META.res.ash = Math.round(META.res.ash * 1.0 + R.ash * 0.1);
+  // 棺中慈悲: died before 12min → mercy stack (pilgrimage runs only)
+  const pilgrimish = G.mode === 'pilgrimage' || G.mode === 'daily';
+  if (pilgrimish && !victory && G.time < 720 && !G.executed) META.mercy = Math.min(2, META.mercy + 1);
+  if (pilgrimish && (G.executed || victory)) META.mercy = 0;
+  if (META.mercyOff && META.mercy > 0) META.res.ash = Math.round(META.res.ash + R.ash * 0.1);
   // cursed clear stat (vielna unlock)
   const p = G.player;
   if (p && p.relics.filter(r => ['closedeye', 'umbilical', 'hourglass', 'invitation', 'sindice', 'strayKey', 'skinmap', 'holidaycrown'].includes(r)).length >= 3 && (victory || G.bossKills > 0)) {
     META.stats.cursedClear = (META.stats.cursedClear || 0) + 1;
   }
-  // noin inherit
+  // noin inherit — always reflects the run that just ended (docs: 继承上一局)
   if (p && p.weapons.length > 1) {
     const cand = p.weapons[1 + ((G.rng() * (p.weapons.length - 1)) | 0)];
     META.noinInherit = { kind: 'weapon', id: cand.id };
-  }
+  } else META.noinInherit = null;
   META.lastRunSummary = {
     reason, victory, time: G.time, kills: G.kills, elite: G.eliteKills, boss: G.bossKills,
     dmg: G.dmgDealt, taken: G.dmgTaken, level: p ? p.level : 1,

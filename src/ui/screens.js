@@ -410,6 +410,7 @@ export function showAreaTitle(title, sub, lines) {
   setTimeout(() => d.remove(), 4200);
 }
 export function toastLines(who, text) {
+  ui().querySelectorAll('.story-box').forEach(b => b.remove());
   const box = el('div', 'story-box fade-in');
   if (who) box.appendChild(el('div', 'who', who));
   box.appendChild(el('div', '', text.replace(/\n/g, '<br>')));
@@ -550,8 +551,13 @@ export function showResults(sum) {
   const g = sum.gains;
   s.appendChild(el('div', 'gain-list',
     `＋灰烬记忆 ${fmt(g.ash)}${g.nail ? ` ＋圣徒铁钉 ${g.nail}` : ''}${g.bone ? ` ＋堕翼骨片 ${g.bone}` : ''}${g.pollen ? ` ＋伊甸花粉 ${g.pollen}` : ''}${g.eye ? ` ＋黑日之瞳 ${g.eye}` : ''}`));
-  // unlock notices
-  const newChars = CHARACTERS.filter(c => !META.unlockedChars.includes(c.id) && isCharUnlocked(c));
+  // unlock notices (isCharUnlocked also persists newly-met conditions)
+  const before = [...META.unlockedChars];
+  CHARACTERS.forEach(c => isCharUnlocked(c));
+  const fresh = META.unlockedChars.filter(id => !before.includes(id));
+  for (const id of fresh) {
+    s.appendChild(el('div', 'gain-list', `☩ 新的躯体可被缝合：${CHAR_BY_ID[id].name}`));
+  }
   if (META.mercy > 0 && !META.mercyOff) s.appendChild(el('div', 'sc-note', `棺中慈悲 ×${META.mercy}：下一局攻防+8%（可在设置关闭）`));
   s.appendChild(el('div', 'divider'));
   s.appendChild(btn('回到无灯旅店', hubScreen, 'btn primary'));

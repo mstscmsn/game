@@ -68,8 +68,27 @@ export function resetG(opts = {}) {
     ended: false, endingId: null, camTarget: null,
     freeArtifactUpgrade: 0, stats1min: null,
     dailyDate: opts.dailyDate || null,
+    // dynamic per-run fields that systems attach at runtime — must not leak across runs
+    blackSunT: 0, ninthBellFx: 0, bloodSeaFx: false, silenceT: 0, timeStopT: 0,
+    soulnetT: 0, echoAllT: 0, bleedBuffT: 0, kingRavenT: 0, reverseT: 0,
+    rareTaken: 0, ledgerKills: 0, lsAcc: 0, lsWindow: 0,
+    spawnAcc: 0, eliteT: 70, incenseT: 0, giftT: 0, holidayT: 0, holidayBlessN: 0,
+    prayerT: 0, rainT: 0, fleshT: 0, bellWarn: false, bossSpawned: false,
+    candleBuffT: 0, duskBuff: 1, tempAtkT: 0, mirrorMult: 1, pausedFrom: null,
+    timers: [], purifyOffered: false, lastHitBy: null, echoFire: false,
+    ledger: 0, lockedCards: null,
   });
   G.hash.clear();
+}
+
+/* ---------- game-time scheduled callbacks (pause-safe) ---------- */
+export function after(sec, fn) { G.timers.push({ t: sec, fn }); }
+export function tickTimers(dt) {
+  for (let i = G.timers.length - 1; i >= 0; i--) {
+    const tm = G.timers[i];
+    tm.t -= dt;
+    if (tm.t <= 0) { G.timers.splice(i, 1); try { tm.fn(); } catch (e) { console.error(e); } }
+  }
 }
 
 /* ---------- lightweight fx ---------- */
