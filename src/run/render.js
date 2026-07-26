@@ -519,7 +519,8 @@ function drawHUD(ctx, p) {
   beginUI(ctx);
   const w = view.w, h = view.h;
   const S = p.S;
-  const safeTop = 12;
+  const safeTop = 12 + view.safeTop;
+  const safeBot = view.safeBottom;
   const heaven = G.areaId === 'fakeheaven';
   const trueH = G.areaId === 'trueheaven';
   const boneCol = heaven ? '#6b6252' : '#D8C7A4';
@@ -630,19 +631,19 @@ function drawHUD(ctx, p) {
   ctx.fillText(`击杀 ${fmt(G.kills)}`, w - 46, py0 + 14);
   ctx.fillText(`Lv.${p.level}`, w - 46, py0 + 28);
   ctx.fillText(`灰烬 ${fmt(G.runResources.ash)}`, w - 46, py0 + 42);
-  // pause button
+  // pause button (generous hit zone for thumbs)
   ctx.strokeStyle = boneCol; ctx.lineWidth = 2;
-  ctx.strokeRect(w - 36, py0 + 8, 26, 26);
-  ctx.fillRect(w - 30, py0 + 14, 4, 14);
-  ctx.fillRect(w - 22, py0 + 14, 4, 14);
-  input.btns.pause = { x: w - 23, y: py0 + 21, r: 26, cb: window.__PAUSE };
+  ctx.strokeRect(w - 40, py0 + 6, 30, 30);
+  ctx.fillRect(w - 33, py0 + 13, 5, 16);
+  ctx.fillRect(w - 23, py0 + 13, 5, 16);
+  input.btns.pause = { x: w - 25, y: py0 + 21, r: 32, cb: window.__PAUSE };
   ctx.textAlign = 'left';
 
   /* xp bar */
   bar(ctx, 0, py0 + 48, w * clamp(p.xp / p.xpNeed, 0, 1), 3, 1, '#46608a');
 
   /* bottom-center: weapon slots */
-  const slotY = h - 108;
+  const slotY = h - 108 - safeBot;
   const slotsW = 6 * 44;
   for (let i = 0; i < 6; i++) {
     const sx = w / 2 - slotsW / 2 + i * 44;
@@ -680,55 +681,70 @@ function drawHUD(ctx, p) {
     ctx.beginPath(); ctx.arc(w / 2 - slotsW / 2 - 22, slotY + 12 + i * 24, 9, 0, TAU); ctx.stroke();
   }
 
-  /* joystick (bottom-left) */
+  /* joystick — any touch on the movement half of the screen summons it */
   const swap = window.SETTINGS?.swapHands;
-  const joyX = swap ? w - 90 : 90, joyY = h - 150;
-  ctx.globalAlpha = input.joyActive ? 0.55 : 0.2;
+  const joyX = swap ? w - 96 : 96, joyY = h - 158 - safeBot;
+  ctx.globalAlpha = input.joyActive ? 0.55 : 0.18;
   ctx.strokeStyle = boneCol; ctx.lineWidth = 2;
   const jbx = input.joyActive ? input.joyBaseX : joyX;
   const jby = input.joyActive ? input.joyBaseY : joyY;
-  ctx.beginPath(); ctx.arc(jbx, jby, 46, 0, TAU); ctx.stroke();
+  ctx.beginPath(); ctx.arc(jbx, jby, 50, 0, TAU); ctx.stroke();
   ctx.fillStyle = boneCol;
   const jkx = input.joyActive ? input.joyKnobX : joyX;
   const jky = input.joyActive ? input.joyKnobY : joyY;
-  ctx.beginPath(); ctx.arc(jkx, jky, 20, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(jkx, jky, 22, 0, TAU); ctx.fill();
+  if (!input.joyActive && G.time < 20) {   // first moments: teach the free-stick
+    ctx.globalAlpha = 0.35;
+    ctx.font = '11px serif'; ctx.textAlign = 'center';
+    ctx.fillText(swap ? '右半屏任意位置拖动' : '左半屏任意位置拖动', jbx, jby + 74);
+    ctx.textAlign = 'left';
+  }
   ctx.globalAlpha = 1;
 
-  /* dodge + sin buttons (bottom-right) */
-  const bx = swap ? 90 : w - 66, by = h - 118;
-  // dodge (small)
+  /* dodge + sin buttons — raised into the natural thumb arc, enlarged,
+   * stacked along the screen edge clear of the weapon-slot row */
+  const bx = swap ? 78 : w - 78, by = h - 186 - safeBot;   // sin center
+  const dx = swap ? 70 : w - 70, dy = h - 92 - safeBot;    // dodge center
+  ctx.textAlign = 'center';
+  const pressed = (name) => input.pressFx && input.pressFx.name === name && performance.now() - input.pressFx.t < 160;
+  // dodge
   const dReady = p.dodgeCharges > 0;
-  ctx.globalAlpha = dReady ? 0.85 : 0.35;
-  ctx.strokeStyle = boneCol; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(bx - 52, by + 44, 26, 0, TAU); ctx.stroke();
-  ctx.font = '11px serif'; ctx.fillStyle = boneCol; ctx.textAlign = 'center';
-  ctx.fillText('闪避', bx - 52, by + 48);
+  ctx.globalAlpha = dReady ? 0.9 : 0.35;
+  ctx.fillStyle = pressed('dodge') ? 'rgba(216,199,164,0.30)' : 'rgba(11,10,12,0.35)';
+  ctx.beginPath(); ctx.arc(dx, dy, 33, 0, TAU); ctx.fill();
+  ctx.strokeStyle = boneCol; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.arc(dx, dy, 33, 0, TAU); ctx.stroke();
+  ctx.font = '13px serif'; ctx.fillStyle = boneCol;
+  ctx.fillText('闪避', dx, dy + 5);
   if (!dReady) {
     ctx.strokeStyle = '#B58D3B';
-    ctx.beginPath(); ctx.arc(bx - 52, by + 44, 26, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(p.dodgeT / S.dodgeCd, 0, 1)); ctx.stroke();
+    ctx.beginPath(); ctx.arc(dx, dy, 33, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(p.dodgeT / S.dodgeCd, 0, 1)); ctx.stroke();
   }
-  if (p.dodgeMax > 1) ctx.fillText('×' + p.dodgeCharges, bx - 52, by + 66);
-  input.btns.dodge = { x: bx - 52, y: by + 44, r: 30 };
+  if (p.dodgeMax > 1) { ctx.font = '11px serif'; ctx.fillText('×' + p.dodgeCharges, dx, dy + 24); }
+  input.btns.dodge = { x: dx, y: dy, r: 40 };
   // sin (big) — character-specific pulse when full
   const sinFrac = clamp(p.sin.charge / p.sin.need, 0, 1);
   const full = sinFrac >= 1;
-  const pulse = full ? 1 + Math.sin(G.time * 7) * 0.06 : 1;
-  ctx.globalAlpha = full ? 0.95 : 0.45;
+  const pulse = full ? 1 + Math.sin(G.time * 7) * 0.05 : 1;
+  ctx.globalAlpha = full ? 0.95 : 0.5;
+  ctx.fillStyle = pressed('skill') ? 'rgba(212,71,79,0.28)' : 'rgba(11,10,12,0.35)';
+  ctx.beginPath(); ctx.arc(bx, by, 46, 0, TAU); ctx.fill();
   ctx.strokeStyle = G.sinDeniedT > 0 ? '#D4474F' : full ? '#D4474F' : boneCol;
   if (full) {         // charged: gold halo glow
     ctx.save();
-    ctx.shadowColor = '#B58D3B'; ctx.shadowBlur = 14;
-    ctx.beginPath(); ctx.arc(bx, by, 38, 0, TAU); ctx.stroke();
+    ctx.shadowColor = '#B58D3B'; ctx.shadowBlur = 16;
+    ctx.beginPath(); ctx.arc(bx, by, 48, 0, TAU); ctx.stroke();
     ctx.restore();
   }
-  ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.arc(bx, by, 36 * pulse, 0, TAU); ctx.stroke();
-  ctx.strokeStyle = '#B58D3B'; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.arc(bx, by, 36, -Math.PI / 2, -Math.PI / 2 + TAU * sinFrac); ctx.stroke();
+  ctx.lineWidth = 3.5;
+  ctx.beginPath(); ctx.arc(bx, by, 46 * pulse, 0, TAU); ctx.stroke();
+  ctx.strokeStyle = '#B58D3B'; ctx.lineWidth = 3.5;
+  ctx.beginPath(); ctx.arc(bx, by, 46, -Math.PI / 2, -Math.PI / 2 + TAU * sinFrac); ctx.stroke();
   ctx.fillStyle = full ? '#e8b0b8' : boneCol;
-  ctx.font = 'bold 13px serif';
-  ctx.fillText(p.char.sin.name, bx, by + 4);
-  input.btns.skill = { x: bx, y: by, r: 42 };
+  ctx.font = 'bold 15px serif';
+  ctx.fillText(p.char.sin.name, bx, by + 5);
+  if (!full) { ctx.font = '10px serif'; ctx.fillStyle = heaven ? '#8a8069' : '#8f8570'; ctx.fillText(`${Math.floor(p.sin.charge)}/${p.sin.need}`, bx, by + 24); }
+  input.btns.skill = { x: bx, y: by, r: 52 };
   ctx.globalAlpha = 1;
   ctx.textAlign = 'left';
   endUI(ctx);

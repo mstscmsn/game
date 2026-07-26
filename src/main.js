@@ -67,6 +67,11 @@ function startRun(opts) {
   }
 }
 
+// mobile: losing the app to the background pauses the run
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && G.active && (G.phase === 'play' || G.phase === 'tribunal')) doPause();
+});
+
 function doPause() {
   if (!G.active) return;
   if (G.phase === 'play' || G.phase === 'tribunal') {

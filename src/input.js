@@ -34,6 +34,7 @@ export function initInput() {
       if (!b) continue;
       const dx = p.x - b.x, dy = p.y - b.y;
       if (dx * dx + dy * dy < b.r * b.r * 1.45) {
+        input.pressFx = { name, t: performance.now() };
         if (name === 'dodge') input.dodge = true;
         if (name === 'skill') input.skill = true;
         if (name === 'pause' && b.cb) b.cb();
@@ -56,7 +57,7 @@ export function initInput() {
   c.addEventListener('pointermove', (e) => {
     if (e.pointerId !== joyPointer) return;
     const p = toUI(e);
-    const R = 52;
+    const R = 58;
     let dx = p.x - input.joyBaseX, dy = p.y - input.joyBaseY;
     const d = Math.hypot(dx, dy);
     if (d > R) { dx = dx / d * R; dy = dy / d * R; }

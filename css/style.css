@@ -164,9 +164,10 @@ html, body {
 
 /* ---------- dialog / story ---------- */
 .story-box {
-  position: absolute; left: 50%; bottom: calc(12% + var(--safe-bottom)); transform: translateX(-50%);
-  width: min(92vw, 420px); background: rgba(8,6,8,.92); border: 1px solid var(--gold);
-  padding: 16px 18px; font-size: 15px; line-height: 2; color: var(--bone); letter-spacing: 1px;
+  /* sits above the thumb zones so it never blocks the joystick or buttons */
+  position: absolute; left: 50%; bottom: calc(38% + var(--safe-bottom)); transform: translateX(-50%);
+  width: min(86vw, 360px); background: rgba(8,6,8,.92); border: 1px solid var(--gold);
+  padding: 13px 15px; font-size: 13.5px; line-height: 1.9; color: var(--bone); letter-spacing: 1px;
   box-shadow: 0 0 30px rgba(0,0,0,.8);
 }
 .story-box .who { color: var(--gold); font-size: 12px; letter-spacing: 3px; margin-bottom: 6px; }
@@ -243,4 +244,5 @@ body.heaven-skin .upcard .ds { color: #7a6f5c; }
 .fade-in { animation: fadein .5s; }
 @keyframes fadein { from { opacity: 0; } }
 
-.top-note { position:absolute; top: calc(8px + var(--safe-top)); left:50%; transform:translateX(-50%); font-size:12px; letter-spacing:2px; color:var(--bone-dim); background:rgba(8,6,8,.7); padding:6px 14px; border:1px solid #302a28; z-index:30; white-space:nowrap; }
+.top-note { position:absolute; top: calc(8px + var(--safe-top)); left:50%; transform:translateX(-50%); font-size:12px; letter-spacing:2px; color:var(--bone-dim); background:rgba(8,6,8,.7); padding:6px 14px; border:1px solid #302a28; z-index:30; white-space:nowrap; pointer-events:none; }
+.confession-toast { pointer-events:auto; }

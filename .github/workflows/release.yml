@@ -37,9 +37,14 @@ jobs:
             ## 下载
             | 文件 | 说明 |
             |---|---|
-            | `anathema-v1.1-release.apk` | 安卓正式版（已签名，直接安装；Android 7.0+） |
-            | `anathema-v1.1-debug.apk` | 安卓调试版（便于侧载测试） |
+            | `anathema-v1.2-release.apk` | 安卓正式版（已签名，直接安装；Android 7.0+） |
+            | `anathema-v1.2-debug.apk` | 安卓调试版（便于侧载测试） |
             | `anathema-standalone.html` | 单文件 Web 版——下载后用浏览器打开即玩，无需服务器 |
+
+            ## v1.2 更新
+            - **移动端操控优化**：左半屏任意位置拖动召出摇杆（带引导提示）；闪避与罪技按钮上调至拇指弧区并加大（罪技显示充能读数、按下有反馈）；剧情弹窗移出拇指区不再挡摇杆
+            - 刘海屏/手势条安全区适配（HUD 自动避让）；切到后台自动暂停
+            - 摇杆行程加大更细腻；暂停按钮加大
 
             ## v1.1 更新
             - 章节推进改为 **Boss 门控**：进区约130秒后区域Boss降临，必须击败才进入下一章；每章约3分钟，整局约20分钟
@@ -55,6 +60,6 @@ jobs:
 
             操作：左摇杆移动，右侧闪避与罪技；桌面 WASD + 空格 + Q。
           files: |
-            release/anathema-v1.1-release.apk
-            release/anathema-v1.1-debug.apk
+            release/anathema-v1.2-release.apk
+            release/anathema-v1.2-debug.apk
             release/anathema-standalone.html

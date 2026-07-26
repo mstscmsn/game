@@ -8,6 +8,7 @@ export const view = {
   flash: 0, flashColor: '#fff',
   slowmo: 0,               // seconds of slow motion remaining
   landscape: false,
+  safeTop: 0, safeBottom: 0, // notch / gesture-bar insets in logical units
 };
 
 export function initCanvas() {
@@ -18,6 +19,18 @@ export function initCanvas() {
   window.addEventListener('orientationchange', () => setTimeout(resize, 120));
 }
 
+let safeProbe = null;
+function measureSafeArea() {
+  if (!safeProbe) {
+    safeProbe = document.createElement('div');
+    safeProbe.style.cssText = 'position:fixed;left:0;top:0;visibility:hidden;pointer-events:none;' +
+      'padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);';
+    document.body.appendChild(safeProbe);
+  }
+  const cs = getComputedStyle(safeProbe);
+  return { top: parseFloat(cs.paddingTop) || 0, bottom: parseFloat(cs.paddingBottom) || 0 };
+}
+
 function resize() {
   const cw = window.innerWidth, ch = window.innerHeight;
   view.dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -26,6 +39,9 @@ function resize() {
   if (view.landscape) { view.h = 640; view.w = Math.round(640 * cw / ch); }
   else { view.w = 540; view.h = Math.round(540 * ch / cw); }
   view.scale = cw / view.w;
+  const safe = measureSafeArea();
+  view.safeTop = safe.top / view.scale;
+  view.safeBottom = safe.bottom / view.scale;
   view.canvas.width = Math.round(cw * view.dpr);
   view.canvas.height = Math.round(ch * view.dpr);
   view.canvas.style.width = cw + 'px';
