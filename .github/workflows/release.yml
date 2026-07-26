@@ -1,0 +1,46 @@
+name: Publish Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create GitHub Release with artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "逆圣：黑日遗嘱 ${{ github.ref_name }}"
+          body: |
+            **ANATHEMA — TESTAMENT OF THE BLACK SUN**
+
+            > 死亡不是结算界面。死亡是通往下一层世界的门。
+
+            暗黑哥特 Roguelite 割草游戏，Web 与安卓双端。
+
+            ## 下载
+            | 文件 | 说明 |
+            |---|---|
+            | `anathema-v1.0-release.apk` | 安卓正式版（已签名，直接安装；Android 7.0+） |
+            | `anathema-v1.0-debug.apk` | 安卓调试版（便于侧载测试） |
+            | `anathema-standalone.html` | 单文件 Web 版——下载后用浏览器打开即玩，无需服务器 |
+
+            ## 内容
+            - 完整朝圣世界线：死神处决 → 堕翼审判 → 地狱 → 假天堂（顺从值）→ 真天堂 → 5 结局
+            - 10 角色 · 16 武器 · 16 神器 · 6 创世禁器 · 24 遗物 · 8 区域 Boss · 70 份告解
+            - 四条局外成长树 · 4 难度 + 罪印 · 章节狩猎 / 每日罪印 / 黑日无尽
+            - 全部美术、音乐、剧情为程序化原创生成
+
+            操作：左摇杆移动，右侧闪避与罪技；桌面 WASD + 空格 + Q。
+          files: |
+            release/anathema-v1.0-release.apk
+            release/anathema-v1.0-debug.apk
+            release/anathema-standalone.html
