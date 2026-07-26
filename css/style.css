@@ -105,10 +105,7 @@ html, body {
   transition: transform .12s, border-color .12s;
   animation: cardin .28s backwards;
 }
-.upcard:nth-child(2) { animation-delay: .05s; }
-.upcard:nth-child(3) { animation-delay: .1s; }
-.upcard:nth-child(4) { animation-delay: .15s; }
-.upcard:nth-child(5) { animation-delay: .2s; }
+/* card entrance stagger is set inline by levelup.js (survives multi-animation shorthands) */
 @keyframes cardin { from { opacity: 0; transform: translateY(14px); } }
 .upcard.q-rare .tag { color: var(--gold); }
 .upcard.q-cursed .tag { color: #b49ac2; }
@@ -233,7 +230,7 @@ html, body {
 .codex-item canvas { width: 44px; height: 44px; image-rendering: pixelated; }
 .codex-item .cn { font-size: 10.5px; color: var(--bone-dim); margin-top: 3px; line-height: 1.4; }
 .codex-item.known .cn { color: var(--bone); }
-.codex-item.silhouette canvas { filter: brightness(0) invert(18%) sepia(8%); }
+.codex-item.silhouette canvas { filter: grayscale(1) brightness(.5) contrast(1.15); opacity: .85; }
 .codex-detail { width: min(94vw, 430px); border:1px solid var(--corrupt); background:rgba(18,13,17,.85); padding:12px 14px; font-size:12.5px; line-height:1.8; color:var(--bone-dim); margin-bottom:10px; }
 .codex-detail b { color:var(--gold); font-weight:normal; }
 
@@ -344,7 +341,12 @@ body.heaven-skin .upcard.q-rare, body.heaven-skin .upcard.q-art, body.heaven-ski
   50% { box-shadow: 0 0 16px rgba(181,141,59,.3); }
 }
 /* picked card: white flash + slight grow, plays during the 140ms before close */
-.upcard.picked, body.heaven-skin .upcard.picked { animation: pickflash .3s ease-out forwards; }
+.upcard.picked { animation: pickflash .3s ease-out forwards; }
+body.heaven-skin .upcard.picked { animation: pickflashHeaven .3s ease-out forwards; }
+@keyframes pickflashHeaven {
+  40% { transform: scale(1.05); border-color: #B58D3B; box-shadow: 0 0 30px rgba(181,141,59,.6); filter: brightness(1.06); }
+  100% { transform: scale(1.02); border-color: #B58D3B; box-shadow: 0 0 18px rgba(181,141,59,.4); }
+}
 @keyframes pickflash {
   0% { transform: scale(1); filter: brightness(1); }
   40% { transform: scale(1.05); filter: brightness(2.2); border-color: #fff; box-shadow: 0 0 34px rgba(238,235,221,.55); }

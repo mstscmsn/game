@@ -44,7 +44,7 @@ await page.evaluate(() => {
   const G = window.__G;
   for (let i = 0; i < 40; i++) {
     const a = Math.random() * 6.28, d = 90 + Math.random() * 260;
-    window.__SPAWN(['shroud', 'hound', 'crow', 'monk', 'ashghoul'][i % 5], G.player.x + Math.cos(a) * d, G.player.y + Math.sin(a) * d, i % 12 === 0);
+    window.__SPAWN(['shroudman', 'gravehound', 'bonecrow', 'diggermonk', 'waxbride'][i % 5], G.player.x + Math.cos(a) * d, G.player.y + Math.sin(a) * d, i % 12 === 0);
   }
 });
 await page.waitForTimeout(250);
@@ -53,7 +53,7 @@ await page.waitForTimeout(900);
 await snap('04-horde-settled');
 
 // 4) cathedral + bells enemies
-for (const [area, types] of [['cathedral', ['bride', 'choir', 'nun', 'centipede']], ['bells', ['drowned', 'sailor', 'belltongue', 'tidecorpse']], ['hell', ['ironflower', 'furnace', 'nervewalker', 'eyeball']], ['fakeheaven', ['cherub', 'lamb', 'shepherd', 'seraphim']]]) {
+for (const [area, types] of [['cathedral', ['waxchoir', 'blindnun', 'praycentipede', 'bellpenitent']], ['bells', ['drownedsoldier', 'facelesssailor', 'belltonguegiant', 'coffinhunter']], ['hell', ['ironflowersoldier', 'furnacewalker', 'hellhound', 'umbilcarrier']], ['fakeheaven', ['cherub', 'falselamb', 'shepherdpuppet', 'smilewalker']]]) {
   await run('evlann', area);
   await page.waitForTimeout(350);
   await page.evaluate((types) => {

@@ -77,7 +77,7 @@ function startAshFall() {
       x: Math.random(), y: Math.random(), r: 1 + Math.random() * 1.6,
       vy: 9 + Math.random() * 15, sway: 5 + Math.random() * 13,
       ph: Math.random() * 6.283, sp: 0.35 + Math.random() * 0.8,
-      a: 0.10 + Math.random() * 0.22,
+      a: 0.08 + Math.random() * 0.14,   // capped low: the canvas sits above UI text
     });
   }
   if (ashRAF) return;

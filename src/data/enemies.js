@@ -40,7 +40,7 @@ export const ENEMIES = {
   nervewalker: { name: '神经行者', sprite: 'nervewalker', hp: 80, dmg: 22, speed: 66, r: 13, behavior: 'dart' },
   sacredeye: { name: '圣眼', sprite: 'eyeball', hp: 60, dmg: 18, speed: 40, r: 12, behavior: 'shoot', proj: { dmg: 22, speed: 200, cd: 2.0 } },
   prayerclot: { name: '祈祷凝块', sprite: 'tidecorpse', tint: '#7c5f8a', hp: 30, dmg: 14, speed: 70, r: 11, behavior: 'swarm' },
-  hymnbearer: { name: '圣歌抬棺人', sprite: 'coffinboat', tint: '#2a3448', hp: 180, dmg: 30, speed: 30, r: 16, behavior: 'summoner', summon: 'prayerclot', cd: 4.5 },
+  hymnbearer: { name: '圣歌抬棺人', sprite: 'coffinboat', tint: '#4a5a74', hp: 180, dmg: 30, speed: 30, r: 16, behavior: 'summoner', summon: 'prayerclot', cd: 4.5 },
   /* 天外尸海 mixes everything + these */
   worldlarva: { name: '世界幼虫', sprite: 'centipede', tint: '#49364F', hp: 200, dmg: 32, speed: 60, r: 17, behavior: 'dart' },
   deadsunshard: { name: '死日残片', sprite: 'eyeball', tint: '#8E1F2F', hp: 150, dmg: 28, speed: 50, r: 13, behavior: 'shoot', proj: { dmg: 26, speed: 220, cd: 1.8 } },

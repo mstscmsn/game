@@ -339,15 +339,20 @@ function renderCards(title, cards, h) {
   const t = document.createElement('div');
   t.className = 'cards-title'; t.textContent = title;
   wrap.appendChild(t);
+  let cardN = 0;
   for (const c of cards) {
     const d = cardHtml(c);
     const el = document.createElement('div');
     el.className = `upcard ${d.q}`;
+    // inline stagger survives the quality-glow animation shorthand (which would
+    // reset a stylesheet animation-delay to 0 and break the entrance order)
+    el.style.animationDelay = (cardN++ * 0.05) + 's';
     el.innerHTML = `<div class="ic"></div><div class="body"><div class="nm">${d.nm}<span class="lv">${d.lv}</span></div><div class="ds">${d.ds}</div>${d.fuse ? `<div class="fuse ${d.ready ? 'ready' : ''}">${d.fuse}</div>` : ''}</div><div class="tag">${d.tag}</div>`;
     el.querySelector('.ic').appendChild(cloneCanvas(d.ic));
     el.addEventListener('click', () => {
       if (acted) return;
       acted = true;
+      el.style.animationDelay = '0s';   // the entrance stagger must not delay the pick flash
       el.classList.add('picked');
       sfx.select();
       setTimeout(() => h.onPick(c), 140);

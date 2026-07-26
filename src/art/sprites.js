@@ -665,8 +665,8 @@ export function refineSprite(src, scale = 3) {
   return src;
 }
 
-// walk shuffle frame: lifts one leg-side by one pixel-cell ('L' or 'R')
-export function walkFrame(src, scale = 3, side = 'L') {
+// walk shuffle frame: lifts one leg-side ('L' or 'R') by `lift` px
+export function walkFrame(src, scale = 3, side = 'L', lift = scale) {
   const c = document.createElement('canvas');
   c.width = src.width; c.height = src.height;
   const ctx = c.getContext('2d');
@@ -675,20 +675,45 @@ export function walkFrame(src, scale = 3, side = 'L') {
   const half = Math.floor(src.width / 2);
   ctx.drawImage(src, 0, 0, src.width, legY, 0, 0, src.width, legY);
   if (side === 'L') {
-    ctx.drawImage(src, 0, legY, half, legH, 0, legY - scale, half, legH);
+    ctx.drawImage(src, 0, legY, half, legH, 0, legY - lift, half, legH);
     ctx.drawImage(src, half, legY, src.width - half, legH, half, legY, src.width - half, legH);
   } else {
     ctx.drawImage(src, 0, legY, half, legH, 0, legY, half, legH);
-    ctx.drawImage(src, half, legY, src.width - half, legH, half, legY - scale, src.width - half, legH);
+    ctx.drawImage(src, half, legY, src.width - half, legH, half, legY - lift, src.width - half, legH);
   }
   return c;
 }
 
 // 4-phase gait from one or two authored poses:
 // contact → shuffle-L → stride(B) → shuffle-R  (B falls back to a lift of A)
+// HD sprites (cell ≤ 2) lift by 2 cells so the step reads at phone size.
 function makeGait(fA, fB, scale) {
-  const stride = fB || walkFrame(fA, scale, 'L');
-  return [fA, walkFrame(fA, scale, 'L'), stride, walkFrame(fA, scale, 'R')];
+  const lift = scale <= 2 ? scale * 2 : scale;
+  const stride = fB || walkFrame(fA, scale, 'L', lift);
+  return [fA, walkFrame(fA, scale, 'L', lift), stride, walkFrame(fA, scale, 'R', lift)];
+}
+
+// subtle pale rim under very dark sprites so they never dissolve into dark floors
+// (drawn UNDER the body: 4-direction offset silhouette at low alpha)
+export function withRimIfDark(src, threshold = 54, alpha = 0.42) {
+  const w = src.width, h = src.height;
+  const d = src.getContext('2d').getImageData(0, 0, w, h).data;
+  let lum = 0, n = 0;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] < 40) continue;
+    lum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    n++;
+  }
+  if (!n || lum / n > threshold) return src;
+  const c = document.createElement('canvas');
+  c.width = w + 2; c.height = h + 2;
+  const ctx = c.getContext('2d');
+  const white = variant(src, { tint: '#c8cddc', tintAlpha: 1 });
+  ctx.globalAlpha = alpha;
+  for (const [ox, oy] of [[0, 1], [2, 1], [1, 0], [1, 2]]) ctx.drawImage(white, ox, oy);
+  ctx.globalAlpha = 1;
+  ctx.drawImage(src, 1, 1);
+  return c;
 }
 
 /* ============================= API ============================= */
@@ -728,16 +753,17 @@ export function buildSprites() {
   }
   for (const [id, rows] of Object.entries(ENEMY_ROWS)) {
     const { fA, fB, cell, tall } = buildPair(ENEMY_DEFS[id], rows, 3);
-    SPRITES.enemies[id] = fA;
     // hand-authored B frames animate any body plan; legacy leg-lift only fits
     // tall humanoids (low/round bodies would tear)
-    SPRITES.enemFrames[id] = fB ? makeGait(fA, fB, cell) : (tall ? makeGait(fA, null, cell) : [fA]);
-    SPRITES.enemiesB[id] = SPRITES.enemFrames[id][2] || fA;
+    const frames = fB ? makeGait(fA, fB, cell) : (tall ? makeGait(fA, null, cell) : [fA]);
+    SPRITES.enemFrames[id] = frames.map(f => withRimIfDark(f));
+    SPRITES.enemies[id] = SPRITES.enemFrames[id][0];
+    SPRITES.enemiesB[id] = SPRITES.enemFrames[id][2] || SPRITES.enemies[id];
   }
   for (const [id, rows] of Object.entries(BOSS_ROWS)) {
     const { fA, fB } = buildPair(BOSS_DEFS[id], rows, 4);
-    SPRITES.bosses[id] = fA;
-    SPRITES.bossFrames[id] = fB ? [fA, fB] : [fA];
+    SPRITES.bossFrames[id] = (fB ? [fA, fB] : [fA]).map(f => withRimIfDark(f, 50, 0.5));
+    SPRITES.bosses[id] = SPRITES.bossFrames[id][0];
   }
   for (const [id, rows] of Object.entries(MISC_ROWS)) SPRITES.misc[id] = px(rows, { scale: 3 });
   // 宝箱拟态怪 uses the chest look as an enemy sprite

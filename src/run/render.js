@@ -2,7 +2,7 @@
 import { G, burst } from './state.js';
 import { view, beginWorld, endWorld, beginUI, endUI } from '../engine.js';
 import { AREA_BG, DECOS } from '../art/backgrounds.js';
-import { SPRITES, variant } from '../art/sprites.js';
+import { SPRITES, variant, withRimIfDark } from '../art/sprites.js';
 import { icon, iconEvolved } from '../art/icons.js';
 import { WEAPON_BY_ID } from '../data/weapons.js';
 import { input } from '../input.js';
@@ -11,6 +11,7 @@ import { BAL } from '../data/balance.js';
 
 const tintCache = new Map();
 let dispHp = -1, lastXpFrac = 0, xpPulse = 0;   // HUD easing state
+let lastFrameT = 0, rdt = 1 / 60;               // real frame dt for HUD/fx decay
 function sprOf(e, fi = 0) {
   const frames = SPRITES.enemFrames[e.def.sprite];
   if (!frames) return null;
@@ -29,8 +30,10 @@ function sprOf(e, fi = 0) {
     return tintCache.get(key);
   }
   if (e.def.tint) {
+    // 0.32 keeps the hand-drawn shading readable through the recolor; a pale
+    // rim is re-applied when the tint result lands too dark for dark floors
     const key = e.def.sprite + ':' + e.def.tint + fk;
-    if (!tintCache.has(key)) tintCache.set(key, variant(base, { tint: e.def.tint, tintAlpha: 0.5 }));
+    if (!tintCache.has(key)) tintCache.set(key, withRimIfDark(variant(base, { tint: e.def.tint, tintAlpha: 0.32 })));
     c = tintCache.get(key);
   }
   if (G.blackSunT > 0) {
@@ -51,6 +54,10 @@ function shadow(ctx, x, y, rx, alpha = 0.3) {
 export function render(ctx) {
   const p = G.player;
   if (!p) return;
+  // real frame dt (render runs per rAF; decay must not be refresh-rate bound)
+  const now = performance.now();
+  rdt = lastFrameT ? Math.min(0.05, (now - lastFrameT) / 1000) : 1 / 60;
+  lastFrameT = now;
   // camera
   view.camX = p.x; view.camY = p.y - 40;
   // clear
@@ -154,9 +161,43 @@ function drawObstacles(ctx) {
       ctx.fillRect(o.x - 12, o.y - 30, 24, 36);
       ctx.fillStyle = '#2a3448';
       ctx.fillRect(o.x - 8, o.y - 26, 6, 8);
+    } else if (G.areaId === 'fakeheaven') {
+      // pale marble stump — reads on the bright lawn instead of a black hole
+      ctx.fillStyle = 'rgba(11,10,12,0.18)';
+      ctx.beginPath(); ctx.ellipse(o.x, o.y + o.r * 0.55, o.r * 0.95, o.r * 0.34, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#cfc7ae';
+      ctx.fillRect(o.x - o.r * 0.55, o.y - o.r * 0.8, o.r * 1.1, o.r * 1.35);
+      ctx.fillStyle = '#e7e2cf';
+      ctx.fillRect(o.x - o.r * 0.7, o.y - o.r, o.r * 1.4, o.r * 0.35);
+      ctx.fillStyle = '#a89f86';
+      ctx.fillRect(o.x - o.r * 0.55, o.y + o.r * 0.3, o.r * 1.1, o.r * 0.25);
     } else {
-      ctx.fillStyle = '#241d22';
-      ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, TAU); ctx.fill();
+      // irregular slate block: filled facets + light top edge + ground shadow
+      ctx.fillStyle = 'rgba(4,3,5,0.3)';
+      ctx.beginPath(); ctx.ellipse(o.x, o.y + o.r * 0.6, o.r, o.r * 0.32, 0, 0, TAU); ctx.fill();
+      const rr = o.r;
+      ctx.fillStyle = G.areaId === 'trueheaven' ? '#232b3d' : '#332a30';
+      ctx.beginPath();
+      ctx.moveTo(o.x - rr * 0.9, o.y + rr * 0.5);
+      ctx.lineTo(o.x - rr * 0.7, o.y - rr * 0.5);
+      ctx.lineTo(o.x - rr * 0.1, o.y - rr * 0.85);
+      ctx.lineTo(o.x + rr * 0.8, o.y - rr * 0.35);
+      ctx.lineTo(o.x + rr * 0.9, o.y + rr * 0.5);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = G.areaId === 'trueheaven' ? 'rgba(154,180,220,0.4)' : 'rgba(216,199,164,0.28)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(o.x - rr * 0.7, o.y - rr * 0.5);
+      ctx.lineTo(o.x - rr * 0.1, o.y - rr * 0.85);
+      ctx.lineTo(o.x + rr * 0.8, o.y - rr * 0.35);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(11,10,12,0.35)';
+      ctx.beginPath();
+      ctx.moveTo(o.x - rr * 0.1, o.y - rr * 0.85);
+      ctx.lineTo(o.x + rr * 0.8, o.y - rr * 0.35);
+      ctx.lineTo(o.x + rr * 0.9, o.y + rr * 0.5);
+      ctx.lineTo(o.x + rr * 0.1, o.y + rr * 0.5);
+      ctx.closePath(); ctx.fill();
     }
   }
   for (const pr of G.props) {
@@ -233,7 +274,8 @@ function drawEnemies(ctx) {
     if (!spr) continue;
     const sc = (e.isElite ? 1.35 : 1);
     const w = spr.width * sc, h = spr.height * sc;
-    const bob = e.spawning > 0 ? 0 : Math.sin(G.time * 6 + e.id) * 1.5;
+    // rounded bob: sub-pixel offsets on the 0.75 canvas scale smear pixel rows
+    const bob = e.spawning > 0 ? 0 : Math.round(Math.sin(G.time * 6 + e.id) * 1.5);
     shadow(ctx, e.x, e.y + h / 2 - 2, e.r * 0.9, e.isElite ? 0.4 : 0.28);
     // elite: pulsing gold aura ring under the body
     if (e.isElite && !crowd) {
@@ -255,7 +297,7 @@ function drawEnemies(ctx) {
       ctx.drawImage(spr, 0, 0, spr.width, Math.round(spr.height * (vis / h)),
         -w / 2, h / 2 - vis, w, vis);
       ctx.restore();
-      if (!e._dusted && k > 0.7 && !crowd) { e._dusted = 1; burst(e.x, e.y + h / 2 - 3, 'rgba(107,98,82,0.6)', 4, 60, 0.35, 2); }
+      if (!e._dusted && k > 0.7 && !crowd) { e._dusted = 1; burst(e.x, e.y + h / 2 - 3, 'rgba(196,184,156,0.75)', 7, 70, 0.4, 3); }
     } else {
       ctx.translate(e.x, e.y + bob);
       if (flip) ctx.scale(-1, 1);
@@ -263,9 +305,14 @@ function drawEnemies(ctx) {
         const dk = Math.min(1, e.dying / 0.3);
         ctx.globalAlpha = 0.3 + dk * 0.7;
         ctx.scale(1 + (1 - dk) * 0.25, 0.4 + dk * 0.6);
+      } else if (e.def.behavior === 'dart' && e.btPhase === 1) {
+        // windup: crouch compresses as the lunge charges (color flare + motion)
+        const wk = Math.min(1, Math.max(0, (0.5 - e.bt) / 0.5));
+        ctx.scale(1 + wk * 0.12, 1 - wk * 0.12);
       } else if (e.def.behavior === 'dart' && e.btPhase === 2) {
-        // dash: stretch along the lunge
-        ctx.scale(1.18, 0.86);
+        // dash: stretch along the lunge axis, not always horizontally
+        if (Math.abs(Math.cos(e.dashA || 0)) > 0.7) ctx.scale(1.18, 0.86);
+        else ctx.scale(0.86, 1.18);
       } else if (!crowd && spr.height <= 26 && moving) {
         // low round bodies scuttle with squash-stretch instead of leg frames
         const s = Math.sin(G.time * 11 + e.id) * 0.055;
@@ -362,24 +409,27 @@ function drawReaper(ctx) {
 }
 function drawPlayer(ctx, p) {
   const frames = SPRITES.charFrames[p.char.id];
-  const spr = p.moving && frames ? frames[((G.time * 9) | 0) % frames.length] : SPRITES.chars[p.char.id];
+  const fi = p.moving && frames ? ((G.time * 9) | 0) % frames.length : -1;
+  const spr = fi >= 0 ? frames[fi] : SPRITES.chars[p.char.id];
   if (!spr) return;
-  const bob = p.moving ? Math.sin(G.time * 10) * 1.6 : Math.sin(G.time * 2) * 0.8;
+  // gait-synced bob: passing frames rise, contact frames sink — makes the
+  // step read at phone size (whole-pixel offsets to avoid sub-pixel smear)
+  const bob = fi >= 0 ? (fi % 2 === 1 ? -2 : 1) : Math.round(Math.sin(G.time * 2) * 1);
   shadow(ctx, p.x, p.y + spr.height / 2 - 2, 14, 0.35);
   // dodge afterimages: fading snapshots along the dash
   if (!p._trail) p._trail = [];
   if (p.dodging > 0) {
-    if (!p._trail.length || Math.hypot(p.x - p._trail[p._trail.length - 1].x, p.y - p._trail[p._trail.length - 1].y) > 9) {
+    if (!p._trail.length || Math.hypot(p.x - p._trail[p._trail.length - 1].x, p.y - p._trail[p._trail.length - 1].y) >= 16) {
       p._trail.push({ x: p.x, y: p.y, t: 0, f: p.facing });
       if (p._trail.length > 5) p._trail.shift();
     }
   }
   for (let i = p._trail.length - 1; i >= 0; i--) {
     const g = p._trail[i];
-    g.t += 1 / 60;
+    g.t += rdt;
     if (g.t > 0.28) { p._trail.splice(i, 1); continue; }
     ctx.save();
-    ctx.globalAlpha = 0.3 * (1 - g.t / 0.28);
+    ctx.globalAlpha = 0.2 * (1 - g.t / 0.28);
     ctx.translate(g.x, g.y);
     if (g.f < 0) ctx.scale(-1, 1);
     ctx.drawImage(spr, -spr.width / 2, -spr.height / 2);
@@ -398,8 +448,11 @@ function drawPlayer(ctx, p) {
   ctx.translate(p.x, p.y + bob);
   if (p.moving) ctx.rotate(p.facing * 0.05);      // lean into movement
   else {
-    const br = 1 + Math.sin(G.time * 2.2) * 0.015;   // idle breathing
+    // idle breathing, anchored at the feet so they don't slide
+    const br = 1 + Math.sin(G.time * 2.2) * 0.03;
+    ctx.translate(0, spr.height / 2);
     ctx.scale(br, 2 - br);
+    ctx.translate(0, -spr.height / 2);
   }
   if (p.facing < 0) ctx.scale(-1, 1);
   // bone-white outline halo: the anchor that keeps "me" findable in a horde
@@ -683,7 +736,7 @@ function drawHUD(ctx, p) {
   const hpFrac = clamp(p.hp / S.maxHp, 0, 1);
   // damage lag-chunk: a pale segment trails the real bar so hits read on the HUD
   if (dispHp < 0 || dispHp < hpFrac) dispHp = hpFrac;
-  else dispHp = Math.max(hpFrac, dispHp - 0.35 / 60);
+  else dispHp = Math.max(hpFrac, dispHp - 0.35 * rdt);
   if (trueH) {
     // collapse from both sides toward center (docs §16.8)
     ctx.fillStyle = '#1b171c'; ctx.fillRect(px0 + 48, py0 + 6, 134, 12);
@@ -764,7 +817,7 @@ function drawHUD(ctx, p) {
     const bw = Math.min(w - 60, 330);
     const bFrac = clamp(b.hp / b.maxHp, 0, 1);
     if (b._dispHp === undefined || b._dispHp < bFrac) b._dispHp = bFrac;
-    else b._dispHp = Math.max(bFrac, b._dispHp - 0.25 / 60);
+    else b._dispHp = Math.max(bFrac, b._dispHp - 0.25 * rdt);
     ctx.fillStyle = 'rgba(11,10,12,0.7)';
     ctx.fillRect(w / 2 - bw / 2 - 4, py0 + 42, bw + 8, 26);
     bar(ctx, w / 2 - bw / 2, py0 + 46, bw, 9, bFrac, '#D4474F', '#1b171c');
@@ -817,7 +870,7 @@ function drawHUD(ctx, p) {
   const xpFrac = clamp(p.xp / p.xpNeed, 0, 1);
   if (xpFrac > lastXpFrac + 0.001 || xpFrac < lastXpFrac - 0.3) xpPulse = 0.5;   // gained (or leveled)
   lastXpFrac = xpFrac;
-  xpPulse = Math.max(0, xpPulse - 1 / 60);
+  xpPulse = Math.max(0, xpPulse - rdt);
   ctx.fillStyle = '#1b171c';
   ctx.fillRect(0, py0 + 48, w, 4);
   bar(ctx, 0, py0 + 48, w * xpFrac, 4, 1, '#46608a');
