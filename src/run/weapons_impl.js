@@ -252,9 +252,12 @@ const FIRE = {
     if (!last || last.id === 'mirrorw') return;
     const lw = p.weapons.find(x => x.id === last.id);
     if (!lw) return;
+    const prev = G.echoFire;
+    G.echoFire = true;
     G.mirrorMult = (G.mirrorMult || 1) * st.copyMult;
     FIRE[lw.evolved ? 'evo_' + lw.id : lw.id](lw, wStat(lw));
     G.mirrorMult = 1;
+    G.echoFire = prev;
     mirrorFx(p);
   },
   evo_mirrorw(w, st) { // 无尽告解: copy up to 4 distinct weapons
@@ -262,12 +265,13 @@ const FIRE = {
     const others = p.weapons.filter(x => x.id !== 'mirrorw').slice(0, 4);
     let i = 0;
     for (const lw of others) {
-      setTimeout(() => {
-        if (!G.active) return;
+      after(i * 0.09, () => {
+        G.echoFire = true;
         G.mirrorMult = st.copyMult;
         FIRE[lw.evolved ? 'evo_' + lw.id : lw.id](lw, wStat(lw));
         G.mirrorMult = 1;
-      }, i * 90);
+        G.echoFire = false;
+      });
       i++;
     }
     mirrorFx(p);
