@@ -212,7 +212,8 @@ function tribunalFail() {
 /* ============== boss-kill continuations ============== */
 export function onBossKilled(id) {
   if (id === 'rahshiel') {
-    if (G.phase === 'tribunal') { G.killedRahshiel = true; /* defeated = won; kill flag for dawn check */ }
+    // 设定：审判获胜=使拉赫希尔屈服而非杀死（见 STORY.rahshiel.win），
+    // 故真结局条件"没有杀死拉赫希尔"由 tribunalWon 本身承载。
     return;
   }
   if (id === 'margola') {

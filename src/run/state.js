@@ -30,7 +30,6 @@ export const G = {
   purifiedForbidden: 0,
   runResources: { ash: 0, nail: 0, bone: 0, pollen: 0, eye: 0 },
   confessionsThisRun: [],
-  killedRahshiel: false,
   secretDiffMult: 1,         // 无主钥匙 escalation
   killLedgerBonus: 0,
   bigBellT: 0, fogT: 0, tideT: 0,
@@ -61,7 +60,7 @@ export function resetG(opts = {}) {
     sinMarks: opts.sinMarks || 0,
     chestPity: 0, worldCores: 0, coreNames: [], purifiedForbidden: 0,
     runResources: { ash: 0, nail: 0, bone: 0, pollen: 0, eye: 0 },
-    confessionsThisRun: [], killedRahshiel: false,
+    confessionsThisRun: [],
     secretDiffMult: 1, killLedgerBonus: 0,
     bigBellT: 0, fogT: 0, tideT: 0, duskT: 0,
     storyQueue: [], onStoryDone: null,
