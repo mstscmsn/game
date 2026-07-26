@@ -665,8 +665,8 @@ export function refineSprite(src, scale = 3) {
   return src;
 }
 
-// 2-frame walk cycle: frame B lifts the left leg by one pixel-cell
-export function walkFrame(src, scale = 3) {
+// walk shuffle frame: lifts one leg-side by one pixel-cell ('L' or 'R')
+export function walkFrame(src, scale = 3, side = 'L') {
   const c = document.createElement('canvas');
   c.width = src.width; c.height = src.height;
   const ctx = c.getContext('2d');
@@ -674,39 +674,76 @@ export function walkFrame(src, scale = 3) {
   const legH = scale * 3, legY = Math.max(0, src.height - legH);
   const half = Math.floor(src.width / 2);
   ctx.drawImage(src, 0, 0, src.width, legY, 0, 0, src.width, legY);
-  ctx.drawImage(src, 0, legY, half, legH, 0, legY - scale, half, legH);
-  ctx.drawImage(src, half, legY, src.width - half, legH, half, legY, src.width - half, legH);
+  if (side === 'L') {
+    ctx.drawImage(src, 0, legY, half, legH, 0, legY - scale, half, legH);
+    ctx.drawImage(src, half, legY, src.width - half, legH, half, legY, src.width - half, legH);
+  } else {
+    ctx.drawImage(src, 0, legY, half, legH, 0, legY, half, legH);
+    ctx.drawImage(src, half, legY, src.width - half, legH, half, legY - scale, src.width - half, legH);
+  }
   return c;
 }
 
+// 4-phase gait from one or two authored poses:
+// contact → shuffle-L → stride(B) → shuffle-R  (B falls back to a lift of A)
+function makeGait(fA, fB, scale) {
+  const stride = fB || walkFrame(fA, scale, 'L');
+  return [fA, walkFrame(fA, scale, 'L'), stride, walkFrame(fA, scale, 'R')];
+}
+
 /* ============================= API ============================= */
-export const SPRITES = { chars: {}, charsB: {}, enemies: {}, enemiesB: {}, bosses: {}, misc: {} };
+// hi-density redraws + hand-authored second frames from the ateliers
+// (sprites_hd.js is generated; empty entries fall back to legacy rows here)
+import { CHAR_HD, ENEMY_HD, BOSS_HD } from './sprites_hd.js';
+const CHAR_DEFS = CHAR_HD;
+const ENEMY_DEFS = ENEMY_HD;
+const BOSS_DEFS = BOSS_HD;
+
+export const SPRITES = { chars: {}, charsB: {}, enemies: {}, enemiesB: {}, bosses: {}, misc: {},
+  charFrames: {}, enemFrames: {}, bossFrames: {} };
+
+function buildPair(def, legacyRows, legacyScale) {
+  const cell = def ? (def.cell || 2) : legacyScale;
+  const opts = def && def.pal ? { scale: cell, pal: def.pal } : { scale: cell };
+  const rows = def ? def.rows : legacyRows;
+  const fA = refineSprite(px(rows, opts), cell);
+  const fB = def && def.rowsB ? refineSprite(px(def.rowsB, opts), cell) : null;
+  return { fA, fB, cell, tall: rows.length >= (def ? 14 : 9) };
+}
 
 export function buildSprites() {
   SPRITES.charOutline = {};
   for (const [id, rows] of Object.entries(CHAR_ROWS)) {
-    SPRITES.chars[id] = refineSprite(px(rows, { scale: 3 }), 3);
-    SPRITES.charsB[id] = walkFrame(SPRITES.chars[id], 3);
+    const { fA, fB, cell } = buildPair(CHAR_DEFS[id], rows, 3);
+    SPRITES.chars[id] = fA;
+    SPRITES.charFrames[id] = makeGait(fA, fB, cell);
+    SPRITES.charsB[id] = SPRITES.charFrames[id][2];
     // bone-white 1px outline halo — the player anchor in dense hordes
-    const src = SPRITES.chars[id];
     const oc = document.createElement('canvas');
-    oc.width = src.width + 4; oc.height = src.height + 4;
+    oc.width = fA.width + 4; oc.height = fA.height + 4;
     const octx = oc.getContext('2d');
-    const white = variant(src, { tint: '#EEEBDD', tintAlpha: 1 });
+    const white = variant(fA, { tint: '#EEEBDD', tintAlpha: 1 });
     for (const [ox, oy] of [[0, 2], [4, 2], [2, 0], [2, 4]]) octx.drawImage(white, ox, oy);
     SPRITES.charOutline[id] = oc;
   }
   for (const [id, rows] of Object.entries(ENEMY_ROWS)) {
-    SPRITES.enemies[id] = refineSprite(px(rows, { scale: 3 }), 3);
-    // walk frame only fits tall humanoid silhouettes; low/round bodies
-    // (centipede/crow/eyeball/lamb…) would tear — reuse frame A for those
-    SPRITES.enemiesB[id] = rows.length >= 9 ? walkFrame(SPRITES.enemies[id], 3) : SPRITES.enemies[id];
+    const { fA, fB, cell, tall } = buildPair(ENEMY_DEFS[id], rows, 3);
+    SPRITES.enemies[id] = fA;
+    // hand-authored B frames animate any body plan; legacy leg-lift only fits
+    // tall humanoids (low/round bodies would tear)
+    SPRITES.enemFrames[id] = fB ? makeGait(fA, fB, cell) : (tall ? makeGait(fA, null, cell) : [fA]);
+    SPRITES.enemiesB[id] = SPRITES.enemFrames[id][2] || fA;
   }
-  for (const [id, rows] of Object.entries(BOSS_ROWS)) SPRITES.bosses[id] = refineSprite(px(rows, { scale: 4 }), 4);
+  for (const [id, rows] of Object.entries(BOSS_ROWS)) {
+    const { fA, fB } = buildPair(BOSS_DEFS[id], rows, 4);
+    SPRITES.bosses[id] = fA;
+    SPRITES.bossFrames[id] = fB ? [fA, fB] : [fA];
+  }
   for (const [id, rows] of Object.entries(MISC_ROWS)) SPRITES.misc[id] = px(rows, { scale: 3 });
   // 宝箱拟态怪 uses the chest look as an enemy sprite
   SPRITES.enemies.chest = SPRITES.misc.chest;
   SPRITES.enemiesB.chest = SPRITES.misc.chest;
+  SPRITES.enemFrames.chest = [SPRITES.misc.chest];
   // white silhouettes for the black-sun forbidden weapon & reaper scene + hit flash
   SPRITES.whiteOut = {};
   for (const [id, c] of Object.entries(SPRITES.enemies)) SPRITES.whiteOut[id] = variant(c, { tint: '#EEEBDD', tintAlpha: 1 });

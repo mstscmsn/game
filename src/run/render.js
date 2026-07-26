@@ -1,5 +1,5 @@
 // World + HUD rendering on canvas.
-import { G } from './state.js';
+import { G, burst } from './state.js';
 import { view, beginWorld, endWorld, beginUI, endUI } from '../engine.js';
 import { AREA_BG, DECOS } from '../art/backgrounds.js';
 import { SPRITES, variant } from '../art/sprites.js';
@@ -10,14 +10,22 @@ import { fmt, fmtTime, TAU, clamp } from '../core/util.js';
 import { BAL } from '../data/balance.js';
 
 const tintCache = new Map();
-function sprOf(e, frameB = false) {
-  const base = (frameB ? SPRITES.enemiesB : SPRITES.enemies)[e.def.sprite];
-  if (!base) return null;
+let dispHp = -1, lastXpFrac = 0, xpPulse = 0;   // HUD easing state
+function sprOf(e, fi = 0) {
+  const frames = SPRITES.enemFrames[e.def.sprite];
+  if (!frames) return null;
+  const base = frames[fi % frames.length];
   let c = base;
-  const fk = frameB ? 'B' : 'A';
+  const fk = ':' + (fi % frames.length);
   if (e.hitT > 0) {                       // hit flash: white silhouette
     const key = 'hit:' + e.def.sprite + fk;
     if (!tintCache.has(key)) tintCache.set(key, variant(base, { tint: '#EEEBDD', tintAlpha: 0.85 }));
+    return tintCache.get(key);
+  }
+  // dart windup: blood-red pre-dash flare so the lunge is readable
+  if (e.def.behavior === 'dart' && e.btPhase === 1) {
+    const key = 'tele:' + e.def.sprite + fk;
+    if (!tintCache.has(key)) tintCache.set(key, variant(base, { tint: '#D4474F', tintAlpha: 0.45 }));
     return tintCache.get(key);
   }
   if (e.def.tint) {
@@ -216,24 +224,66 @@ function drawPickups(ctx) {
   }
 }
 function drawEnemies(ctx) {
+  const crowd = G.enemies.length > 260;      // skip micro-anim under horde pressure
   for (const e of G.enemies) {
     if (e.dead || !inView(e.x, e.y, 60)) continue;
     const moving = Math.abs(e.vx) + Math.abs(e.vy) > 8 && !(e.frozenT > 0);
-    const frameB = moving && (((G.time * 7 + e.id) | 0) % 2 === 0);
-    const spr = sprOf(e, frameB);
+    const fi = moving ? ((G.time * 7 + e.id) | 0) % 4 : 0;
+    const spr = sprOf(e, fi);
     if (!spr) continue;
     const sc = (e.isElite ? 1.35 : 1);
     const w = spr.width * sc, h = spr.height * sc;
     const bob = e.spawning > 0 ? 0 : Math.sin(G.time * 6 + e.id) * 1.5;
     shadow(ctx, e.x, e.y + h / 2 - 2, e.r * 0.9, e.isElite ? 0.4 : 0.28);
+    // elite: pulsing gold aura ring under the body
+    if (e.isElite && !crowd) {
+      const pk = 0.5 + Math.sin(G.time * 4 + e.id) * 0.2;
+      ctx.strokeStyle = `rgba(181,141,59,${pk * 0.55})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(e.x, e.y + h / 2 - 2, e.r * (0.95 + pk * 0.12), e.r * 0.36, 0, 0, TAU); ctx.stroke();
+    }
     ctx.save();
-    if (e.spawning > 0) ctx.globalAlpha = 1 - e.spawning / 0.4;
     if (e.liftT > 0) ctx.translate(0, -(1 - e.liftT) * 40);
     const flip = e.vx < -1;
-    ctx.translate(e.x, e.y + bob);
-    if (flip) ctx.scale(-1, 1);
-    ctx.drawImage(spr, -w / 2, -h / 2, w, h);
-    ctx.restore();
+    if (e.spawning > 0) {
+      // emerge from the grave: rise + clip below ground line + dust kick
+      const k = 1 - e.spawning / 0.4;         // 0→1
+      ctx.globalAlpha = 0.35 + k * 0.65;
+      ctx.translate(e.x, e.y + bob);
+      if (flip) ctx.scale(-1, 1);
+      const vis = Math.max(1, Math.round(h * (0.25 + 0.75 * k)));
+      ctx.drawImage(spr, 0, 0, spr.width, Math.round(spr.height * (vis / h)),
+        -w / 2, h / 2 - vis, w, vis);
+      ctx.restore();
+      if (!e._dusted && k > 0.7 && !crowd) { e._dusted = 1; burst(e.x, e.y + h / 2 - 3, 'rgba(107,98,82,0.6)', 4, 60, 0.35, 2); }
+    } else {
+      ctx.translate(e.x, e.y + bob);
+      if (flip) ctx.scale(-1, 1);
+      if (e.dying > 0) {                       // death: flatten + fade
+        const dk = Math.min(1, e.dying / 0.3);
+        ctx.globalAlpha = 0.3 + dk * 0.7;
+        ctx.scale(1 + (1 - dk) * 0.25, 0.4 + dk * 0.6);
+      } else if (e.def.behavior === 'dart' && e.btPhase === 2) {
+        // dash: stretch along the lunge
+        ctx.scale(1.18, 0.86);
+      } else if (!crowd && spr.height <= 26 && moving) {
+        // low round bodies scuttle with squash-stretch instead of leg frames
+        const s = Math.sin(G.time * 11 + e.id) * 0.055;
+        ctx.scale(1 + s, 1 - s);
+      }
+      ctx.drawImage(spr, -w / 2, -h / 2, w, h);
+      ctx.restore();
+      // shooter pre-fire glint: brief brighten right before the shot
+      if (!crowd && e.def.behavior === 'shoot' && e.bt < 0.28 && e.bt > 0) {
+        ctx.globalAlpha = 0.3;
+        const hs = sprOf({ ...e, hitT: 1 }, fi);
+        if (hs) {
+          ctx.save(); ctx.translate(e.x, e.y + bob); if (flip) ctx.scale(-1, 1);
+          ctx.drawImage(hs, -w / 2, -h / 2, w, h); ctx.restore();
+        }
+        ctx.globalAlpha = 1;
+      }
+    }
     // status pips
     if (e.st.bleed.s > 0) dot(ctx, e.x - 8, e.y - e.r - 6, '#D4474F');
     if (e.st.burn.t > 0) dot(ctx, e.x - 3, e.y - e.r - 6, '#c96b2f');
@@ -253,11 +303,14 @@ function drawEnemies(ctx) {
 function drawBoss(ctx) {
   const b = G.boss;
   if (!b || b.dead || b.invisible) return;
-  let spr = SPRITES.bosses[b.sprite];
+  const frames = SPRITES.bossFrames[b.sprite] || [SPRITES.bosses[b.sprite]];
+  // threat frame: switch to the menace pose in the last beat before an attack
+  const threat = frames.length > 1 && b.patT < 0.6;
+  let spr = frames[threat ? 1 : 0];
   if (!spr) return;
   // hit flash: white silhouette (dimming on hit read as a bug)
   if (b.hitT > 0) {
-    const key = 'bosshit:' + b.sprite;
+    const key = 'bosshit:' + b.sprite + (threat ? 'B' : 'A');
     if (!tintCache.has(key)) tintCache.set(key, variant(spr, { tint: '#EEEBDD', tintAlpha: 0.8 }));
     spr = tintCache.get(key);
   }
@@ -272,11 +325,16 @@ function drawBoss(ctx) {
   ctx.fillRect(b.x - b.r * 2.2, b.y, b.r * 4.4, spr.height * SCALE);
   ctx.save();
   ctx.translate(b.x, b.y + bob);
-  ctx.scale(SCALE * breathe, SCALE * (2 - breathe));
-  if (b.invulnT > 0) ctx.globalAlpha = 0.5;
+  // entrance: swell up from the ground shadow over the first beat
+  const ent = Math.min(1, b.t / 0.9);
+  const entS = 0.55 + 0.45 * (1 - (1 - ent) * (1 - ent));
+  ctx.scale(SCALE * breathe * entS, SCALE * (2 - breathe) * entS);
+  ctx.globalAlpha = 0.3 + 0.7 * ent;
+  if (b.invulnT > 0 && ent >= 1) ctx.globalAlpha = 0.5;
   if (G.player.x < b.x) ctx.scale(-1, 1);
   ctx.drawImage(spr, -spr.width / 2, -spr.height / 2);
   ctx.restore();
+  ctx.globalAlpha = 1;
   // rahshiel phase-3 halo
   if (b.id === 'rahshiel' && b.phase === 3) {
     ctx.strokeStyle = b.vulnT > 0 ? '#D4474F' : '#B58D3B';
@@ -303,11 +361,30 @@ function drawReaper(ctx) {
   ctx.restore();
 }
 function drawPlayer(ctx, p) {
-  const frameB = p.moving && (((G.time * 9) | 0) % 2 === 0);
-  const spr = (frameB ? SPRITES.charsB : SPRITES.chars)[p.char.id];
+  const frames = SPRITES.charFrames[p.char.id];
+  const spr = p.moving && frames ? frames[((G.time * 9) | 0) % frames.length] : SPRITES.chars[p.char.id];
   if (!spr) return;
   const bob = p.moving ? Math.sin(G.time * 10) * 1.6 : Math.sin(G.time * 2) * 0.8;
   shadow(ctx, p.x, p.y + spr.height / 2 - 2, 14, 0.35);
+  // dodge afterimages: fading snapshots along the dash
+  if (!p._trail) p._trail = [];
+  if (p.dodging > 0) {
+    if (!p._trail.length || Math.hypot(p.x - p._trail[p._trail.length - 1].x, p.y - p._trail[p._trail.length - 1].y) > 9) {
+      p._trail.push({ x: p.x, y: p.y, t: 0, f: p.facing });
+      if (p._trail.length > 5) p._trail.shift();
+    }
+  }
+  for (let i = p._trail.length - 1; i >= 0; i--) {
+    const g = p._trail[i];
+    g.t += 1 / 60;
+    if (g.t > 0.28) { p._trail.splice(i, 1); continue; }
+    ctx.save();
+    ctx.globalAlpha = 0.3 * (1 - g.t / 0.28);
+    ctx.translate(g.x, g.y);
+    if (g.f < 0) ctx.scale(-1, 1);
+    ctx.drawImage(spr, -spr.width / 2, -spr.height / 2);
+    ctx.restore();
+  }
   // shield ring
   if (p.shield > 0) {
     ctx.strokeStyle = 'rgba(70,96,138,0.75)';
@@ -320,6 +397,10 @@ function drawPlayer(ctx, p) {
   ctx.save();
   ctx.translate(p.x, p.y + bob);
   if (p.moving) ctx.rotate(p.facing * 0.05);      // lean into movement
+  else {
+    const br = 1 + Math.sin(G.time * 2.2) * 0.015;   // idle breathing
+    ctx.scale(br, 2 - br);
+  }
   if (p.facing < 0) ctx.scale(-1, 1);
   // bone-white outline halo: the anchor that keeps "me" findable in a horde
   const outline = SPRITES.charOutline && SPRITES.charOutline[p.char.id];
@@ -380,10 +461,10 @@ function drawProjectiles(ctx) {
   for (const pr of G.projs) {
     if (pr.type !== 'spine' && pr.type !== 'blackbeam' && pr.type !== 'sunbeam' && !inView(pr.x, pr.y, 60)) continue;
     switch (pr.type) {
-      case 'spear': line2(ctx, pr, 16, '#D8C7A4', 3); break;
-      case 'bullet': { ctx.fillStyle = '#e8a54a'; ctx.beginPath(); ctx.arc(pr.x, pr.y, 4, 0, TAU); ctx.fill(); line2(ctx, pr, 10, 'rgba(232,165,74,0.5)', 2); break; }
-      case 'dagger': line2(ctx, pr, 9, '#9aa1a8', 2); break;
-      case 'wave': { ctx.strokeStyle = 'rgba(124,95,138,0.8)'; ctx.lineWidth = 3; const a = Math.atan2(pr.vy, pr.vx); ctx.beginPath(); ctx.arc(pr.x, pr.y, 14, a - 0.8, a + 0.8); ctx.stroke(); break; }
+      case 'spear': { line2(ctx, pr, 16, 'rgba(216,199,164,0.35)', 5); line2(ctx, pr, 16, '#D8C7A4', 3); const sa = Math.atan2(pr.vy, pr.vx); ctx.fillStyle = '#e0c06a'; ctx.beginPath(); ctx.arc(pr.x + Math.cos(sa) * 9, pr.y + Math.sin(sa) * 9, 2, 0, TAU); ctx.fill(); break; }
+      case 'bullet': { line2(ctx, pr, 22, 'rgba(232,165,74,0.22)', 4); line2(ctx, pr, 12, 'rgba(232,165,74,0.55)', 2); ctx.fillStyle = '#f5d08a'; ctx.beginPath(); ctx.arc(pr.x, pr.y, 4, 0, TAU); ctx.fill(); ctx.fillStyle = '#e8a54a'; ctx.beginPath(); ctx.arc(pr.x, pr.y, 2.4, 0, TAU); ctx.fill(); break; }
+      case 'dagger': { ctx.save(); ctx.translate(pr.x, pr.y); ctx.rotate(pr.t * 16); ctx.strokeStyle = '#9aa1a8'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(6, 0); ctx.stroke(); ctx.strokeStyle = 'rgba(238,235,221,0.7)'; ctx.beginPath(); ctx.moveTo(0, -4); ctx.lineTo(0, 4); ctx.stroke(); ctx.restore(); break; }
+      case 'wave': { const a = Math.atan2(pr.vy, pr.vx); ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(124,95,138,0.85)'; ctx.beginPath(); ctx.arc(pr.x, pr.y, 14, a - 0.8, a + 0.8); ctx.stroke(); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(124,95,138,0.35)'; ctx.beginPath(); ctx.arc(pr.x - Math.cos(a) * 8, pr.y - Math.sin(a) * 8, 12, a - 0.7, a + 0.7); ctx.stroke(); break; }
       case 'spike': line2(ctx, pr, 10, '#49364F', 3); break;
       case 'page': { ctx.fillStyle = '#D8C7A4'; ctx.save(); ctx.translate(pr.x, pr.y); ctx.rotate(Math.atan2(pr.vy, pr.vx)); ctx.fillRect(-6, -4, 12, 8); ctx.restore(); break; }
       case 'soulfire': { glow(ctx, pr.x, pr.y, 8, 'rgba(70,96,138,0.9)', 'rgba(70,96,138,0.25)'); break; }
@@ -600,14 +681,26 @@ function drawHUD(ctx, p) {
     ctx.beginPath(); ctx.moveTo(px0 + 10, py0 + 8); ctx.lineTo(px0 + 22, py0 + 26); ctx.lineTo(px0 + 16, py0 + 40); ctx.stroke();
   }
   const hpFrac = clamp(p.hp / S.maxHp, 0, 1);
+  // damage lag-chunk: a pale segment trails the real bar so hits read on the HUD
+  if (dispHp < 0 || dispHp < hpFrac) dispHp = hpFrac;
+  else dispHp = Math.max(hpFrac, dispHp - 0.35 / 60);
   if (trueH) {
     // collapse from both sides toward center (docs §16.8)
     ctx.fillStyle = '#1b171c'; ctx.fillRect(px0 + 48, py0 + 6, 134, 12);
+    if (dispHp > hpFrac + 0.005) {
+      ctx.fillStyle = 'rgba(238,235,221,0.65)';
+      const dw = 134 * dispHp;
+      ctx.fillRect(px0 + 48 + (134 - dw) / 2, py0 + 6, dw, 12);
+    }
     ctx.fillStyle = '#8E1F2F';
     const bw = 134 * hpFrac;
     ctx.fillRect(px0 + 48 + (134 - bw) / 2, py0 + 6, bw, 12);
   } else {
     bar(ctx, px0 + 48, py0 + 6, 134, 12, hpFrac, '#8E1F2F', '#1b171c');
+    if (dispHp > hpFrac + 0.005) {
+      ctx.fillStyle = 'rgba(238,235,221,0.65)';
+      ctx.fillRect(px0 + 48 + 134 * hpFrac, py0 + 6, 134 * (dispHp - hpFrac), 12);
+    }
   }
   ctx.fillStyle = boneCol;
   ctx.fillText(`${Math.ceil(p.hp)} / ${S.maxHp}`, px0 + 52, py0 + 16);
@@ -665,13 +758,20 @@ function drawHUD(ctx, p) {
     ctx.fillText(`层${G.loopN + 1}`, w / 2 + 74, py0 + 20);
   }
 
-  /* boss hp — wide, thick, named in bold */
+  /* boss hp — wide, thick, named in bold, with damage lag-chunk */
   if (G.boss && !G.boss.dead) {
     const b = G.boss;
     const bw = Math.min(w - 60, 330);
+    const bFrac = clamp(b.hp / b.maxHp, 0, 1);
+    if (b._dispHp === undefined || b._dispHp < bFrac) b._dispHp = bFrac;
+    else b._dispHp = Math.max(bFrac, b._dispHp - 0.25 / 60);
     ctx.fillStyle = 'rgba(11,10,12,0.7)';
     ctx.fillRect(w / 2 - bw / 2 - 4, py0 + 42, bw + 8, 26);
-    bar(ctx, w / 2 - bw / 2, py0 + 46, bw, 9, clamp(b.hp / b.maxHp, 0, 1), '#D4474F', '#1b171c');
+    bar(ctx, w / 2 - bw / 2, py0 + 46, bw, 9, bFrac, '#D4474F', '#1b171c');
+    if (b._dispHp > bFrac + 0.003) {
+      ctx.fillStyle = 'rgba(238,235,221,0.55)';
+      ctx.fillRect(w / 2 - bw / 2 + bw * bFrac, py0 + 46, bw * (b._dispHp - bFrac), 9);
+    }
     ctx.fillStyle = '#D8C7A4';
     ctx.font = 'bold 12px serif';
     const bn = { anlo: '裂腹圣徒·安洛', mimi: '腐香主教·米弥', whale: '吞钟鲸', rahshiel: '堕翼审判者·拉赫希尔', margola: '地狱产婆·玛戈拉', lambking: '白羊之王', mother: '原初圣母·黑昼' }[b.id] || '';
@@ -713,10 +813,18 @@ function drawHUD(ctx, p) {
   input.btns.pause = { x: w - 25, y: py0 + 21, r: 32, cb: window.__PAUSE };
   ctx.textAlign = 'left';
 
-  /* xp bar — with a visible track */
+  /* xp bar — with a visible track + gain shimmer pulse */
+  const xpFrac = clamp(p.xp / p.xpNeed, 0, 1);
+  if (xpFrac > lastXpFrac + 0.001 || xpFrac < lastXpFrac - 0.3) xpPulse = 0.5;   // gained (or leveled)
+  lastXpFrac = xpFrac;
+  xpPulse = Math.max(0, xpPulse - 1 / 60);
   ctx.fillStyle = '#1b171c';
   ctx.fillRect(0, py0 + 48, w, 4);
-  bar(ctx, 0, py0 + 48, w * clamp(p.xp / p.xpNeed, 0, 1), 4, 1, '#46608a');
+  bar(ctx, 0, py0 + 48, w * xpFrac, 4, 1, '#46608a');
+  if (xpPulse > 0) {
+    ctx.fillStyle = `rgba(154,180,220,${xpPulse * 0.9})`;
+    ctx.fillRect(Math.max(0, w * xpFrac - 26), py0 + 48, 26, 4);
+  }
 
   /* bottom-center: weapon slots */
   const slotY = h - 108 - safeBot;
