@@ -14,7 +14,7 @@ import { updateBoss } from './run/bosses.js';
 import { updateFlow, updateReaper, enterArea, endRun, startTribunal } from './run/flow.js';
 import { render } from './run/render.js';
 import { openLevelUp, openStartBless } from './ui/levelup.js';
-import { mainMenu, bindStart, pauseMenu, applySettings, codexScreen } from './ui/screens.js';
+import { mainMenu, bindStart, pauseMenu, applySettings, codexScreen, toastLines } from './ui/screens.js';
 import { makeRng } from './core/util.js';
 
 function boot() {
@@ -59,6 +59,10 @@ function startRun(opts) {
   p.hp = p.S.maxHp;
   G.phase = 'play';
   enterArea(opts.areaId || 'ashfield');
+  // very first run: name the protection the HUD only hints at
+  if (META.runs === 0) gAfter(2, () => {
+    if (G.active && G.phase === 'play') toastLines('', '初醒庇护：这段时间受到的伤害大幅降低（约90秒）');
+  });
   // 初始赐福 (memory tree) — retry until a safe moment
   if (META.nodes['m_bless']) {
     const tryBless = () => {
@@ -110,6 +114,9 @@ function update(dt) {
   if (G.ninthBellFx > 0) G.ninthBellFx -= gdt;
   if (G.silenceT > 0) G.silenceT -= gdt;
   if (G.sinDeniedT > 0) G.sinDeniedT -= dt;
+  if (G.sinReadyHintT > 0) G.sinReadyHintT -= dt;
+  // 连诛 3s rolling window — the chain breaks when it empties
+  if (G.streakT > 0) { G.streakT -= gdt; if (G.streakT <= 0) G.streak = 0; }
   G.lsWindow = (G.lsWindow || 0) + dt;
   if (G.lsWindow >= 1) { G.lsWindow = 0; G.lsAcc = 0; }
   updatePlayer(G.player, gdt);
@@ -139,8 +146,10 @@ function tickFx(dt) {
     if (!p.ring && !p.beam && !p.chainArc && !p.corpse) { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.94; p.vy *= 0.94; }
   }
   for (let i = G.nums.length - 1; i >= 0; i--) {
-    G.nums[i].t += dt;
-    if (G.nums[i].t > 0.8) G.nums.splice(i, 1);
+    const n = G.nums[i];
+    // warnings age at 0.4x → they live ~2s (render fade math stays valid)
+    n.t += dt * (n.kind === 'warn' ? 0.4 : 1);
+    if (n.t > 0.8) G.nums.splice(i, 1);
   }
 }
 

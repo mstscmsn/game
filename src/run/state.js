@@ -42,6 +42,9 @@ export const G = {
   dailyDate: null,
   spawnHoldT: 0, surged1: false, surged2: false, areaVisits: {},
   lastSparkT: 0, lastCritJuice: 0, sinDeniedT: 0, whisperT: 0,
+  pityWup: 0, pityCat: 0, amountOffered: false,
+  streak: 0, streakT: 0, bossWarned: false, fusionHintShown: false,
+  lastBlockNumT: 0, giftSeen: false, bossSoftDmg: 0, sinReadyHintT: 0,
 };
 
 export function resetG(opts = {}) {
@@ -80,6 +83,9 @@ export function resetG(opts = {}) {
     ledger: 0, lockedCards: null,
     spawnHoldT: 0, surged1: false, surged2: false, areaVisits: {},
     lastSparkT: 0, lastCritJuice: 0, sinDeniedT: 0, whisperT: 0,
+    pityWup: 0, pityCat: 0, amountOffered: false,
+    streak: 0, streakT: 0, bossWarned: false, fusionHintShown: false,
+    lastBlockNumT: 0, giftSeen: false, bossSoftDmg: 0, sinReadyHintT: 0,
   });
   G.hash.clear();
 }

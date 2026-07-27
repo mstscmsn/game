@@ -30,6 +30,8 @@ export const META = {
   sinMarks: 0,             // 罪印难度层数 (self-imposed)
   lastRunSummary: null,
   lastDifficulty: 'pilgrim', // remembered for double-tap quick start
+  lastSinMarks: 0,           // remembered so quick start keeps the sin-mark loadout
+  hints: {},                 // one-shot onboarding hints (sinReady, fuseHintN, ...)
 };
 
 export function loadMeta() {

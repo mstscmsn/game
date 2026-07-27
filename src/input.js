@@ -28,18 +28,21 @@ export function initInput() {
     e.preventDefault();
     input.anyTouch = true;
     const p = toUI(e);
-    // buttons — skill checked before dodge (their hit zones can overlap)
+    // buttons — nearest by normalized distance d/r, so overlapping hit zones
+    // resolve to the button the thumb actually aimed at (no priority-order bias)
+    let hit = null, hitQ = 1.2;
     for (const name of ['pause', 'skill', 'dodge']) {
       const b = input.btns[name];
       if (!b) continue;
-      const dx = p.x - b.x, dy = p.y - b.y;
-      if (dx * dx + dy * dy < b.r * b.r * 1.45) {
-        input.pressFx = { name, t: performance.now() };
-        if (name === 'dodge') input.dodge = true;
-        if (name === 'skill') input.skill = true;
-        if (name === 'pause' && b.cb) b.cb();
-        return;
-      }
+      const q = Math.hypot(p.x - b.x, p.y - b.y) / b.r;
+      if (q < hitQ) { hitQ = q; hit = name; }
+    }
+    if (hit) {
+      input.pressFx = { name: hit, t: performance.now() };
+      if (hit === 'dodge') input.dodge = true;
+      if (hit === 'skill') input.skill = true;
+      if (hit === 'pause' && input.btns.pause.cb) input.btns.pause.cb();
+      return;
     }
     // joystick: left half (or right if swapped)
     const leftSide = input.swapHands ? p.x > view.w / 2 : p.x <= view.w / 2;

@@ -8,10 +8,10 @@ import { META } from '../meta/save.js';
 export function castSin(p) {
   if (G.phase !== 'play' && G.phase !== 'tribunal') return false;
   if (p.sin.charge < p.sin.need || p.sin.active > 0) {
-    // clear feedback instead of silent failure
-    num(p.x, p.y - 26, `罪能 ${Math.floor(p.sin.charge)}/${p.sin.need}`, 'warn');
+    // clear feedback instead of silent failure — and teach where charge comes from
+    num(p.x, p.y - 26, `罪能不足 ${Math.floor(p.sin.charge)}/${p.sin.need}——击杀敌人充能`, 'warn');
     G.sinDeniedT = 0.35;
-    sfx.select();
+    sfx.deny();
     return false;
   }
   p.sin.charge = 0;

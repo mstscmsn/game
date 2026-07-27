@@ -25,7 +25,8 @@ function wStat(w) {
     if (rdef.res) for (const [k, v] of Object.entries(rdef.res)) b[k] = (b[k] || 0) + v;
   }
   let dmgMult = BAL.weaponLvMult[Math.min(7, w.lv - 1)];
-  if (w.evolved) dmgMult *= BAL.artifactMult;
+  // 圣化之刃 late-game pick: evolved weapons compound ×1.1 per stack
+  if (w.evolved) dmgMult *= BAL.artifactMult * Math.pow(1.1, G.player.boosts.artifactDmg || 0);
   if (w.purified) dmgMult *= 0.7;
   b.damage = (b.damage || 0) * dmgMult;
   if (w.evolved && EVO_COOLDOWN[w.id]) b.cooldown = EVO_COOLDOWN[w.id];

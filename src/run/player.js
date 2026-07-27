@@ -69,6 +69,9 @@ export function recomputeStats(p) {
     dodgeCd: BAL.base.dodgeCd, dodgeInv: BAL.base.dodgeInv, dodgeDist: BAL.base.dodgeDist,
     hurtInv: BAL.base.hurtInv, bossDmg: 1, regen10: 0,
   };
+  // per-level baseline growth — every level is felt even without a card (docs §6)
+  S.maxHp += (p.level - 1) * 2;
+  S.damage *= 1 + 0.01 * (p.level - 1);
   // char flat-negative (noin)
   if (c.allStats) { S.damage *= (1 + c.allStats); S.maxHp *= (1 + c.allStats); S.moveSpeed *= (1 + c.allStats); }
   if (c.id === 'noin') { const g = 1 + p.noinLevels * 0.02; S.damage *= g; S.maxHp *= g; S.area *= g; }
@@ -114,14 +117,14 @@ export function recomputeStats(p) {
       else S[k] = (S[k] || 0) + v;
     }
   }
-  // in-run boost picks
+  // in-run boost picks — compounding, so the Nth copy is always a true +X%
   const b = p.boosts;
-  if (b.hp) S.maxHp *= (1 + 0.10 * b.hp);
-  if (b.dmg) S.damage *= (1 + 0.06 * b.dmg);
-  if (b.area) S.area *= (1 + 0.05 * b.area);
+  if (b.hp) S.maxHp *= Math.pow(1.10, b.hp);
+  if (b.dmg) S.damage *= Math.pow(1.06, b.dmg);
+  if (b.area) S.area *= Math.pow(1.05, b.area);
   if (b.cdr) S.cdr += 0.04 * b.cdr;
-  if (b.speed) S.moveSpeed *= (1 + 0.04 * b.speed);
-  if (b.magnet) S.pickup *= (1 + 0.15 * b.magnet);
+  if (b.speed) S.moveSpeed *= Math.pow(1.04, b.speed);
+  if (b.magnet) S.pickup *= Math.pow(1.15, b.magnet);
   if (b.crit) S.crit += 0.05 * b.crit;
   if (b.armor) S.armor += 3 * b.armor;
   if (b.amount) S.amount += b.amount;
@@ -180,8 +183,11 @@ export function updatePlayer(p, dt) {
   if (p.invT > 0) p.invT -= dt;
   if (p.hurtInvT > 0) p.hurtInvT -= dt;
   if (p.tearlessT > 0) p.tearlessT -= dt;
-  if (p.protect > 0 && p.level >= 3) p.protect = Math.max(0, p.protect - dt * 3);
-  else if (p.protect > 0) p.protect -= dt;
+  if (p.shieldHitT > 0) p.shieldHitT -= dt;
+  if (p.protect > 0) {
+    p.protect = Math.max(0, p.protect - dt * (p.level >= 3 ? 3 : 1));
+    if (p.protect === 0) num(p.x, p.y - 30, '初醒庇护消散', 'warn');
+  }
   if (p.dodgeCharges < p.dodgeMax) {
     p.dodgeT += dt;
     if (p.dodgeT >= S.dodgeCd) { p.dodgeT = 0; p.dodgeCharges++; }
@@ -224,15 +230,23 @@ export function playerHurt(p, amount, opts = {}) {
     if (META.mercy > 0 && !META.mercyOff) dmg *= (1 - 0.08 * META.mercy);
     const red = Math.min(BAL.caps.armorReduction, p.S.armor / (p.S.armor + 100));
     dmg *= (1 - red);
+    // 铁壁 late-game pick: flat damage reduction, capped at 30%
+    if (p.boosts && p.boosts.dr) dmg *= (1 - Math.min(0.3, 0.03 * p.boosts.dr));
     // adric coffin layer
     if (p.coffinLayers > 0) { dmg *= 0.3; p.coffinLayers--; }
     // shield first
     if (p.shield > 0) {
       const use = Math.min(p.shield, dmg);
       p.shield -= use; dmg -= use;
+      if (use > 0) p.shieldHitT = 0.25;   // render brightens the ring so absorbs are visible
     }
     dmg = Math.max(0, Math.round(dmg));
-    if (dmg <= 0) { p.hurtInvT = 0.2; return; }
+    if (dmg <= 0) {
+      p.hurtInvT = 0.2;
+      // full block feedback, throttled so tentacle swarms don't spam it
+      if (G.time - G.lastBlockNumT > 0.6) { G.lastBlockNumT = G.time; num(p.x, p.y - 24, '格挡', 'text'); sfx.select(); }
+      return;
+    }
   }
   p.hp -= dmg;
   G.dmgTaken += dmg;
@@ -292,7 +306,9 @@ export function addXp(p, v) {
   while (p.xp >= p.xpNeed) {
     p.xp -= p.xpNeed;
     p.level++;
-    if (p.char.id === 'noin' && p.level % 5 === 0) { p.noinLevels++; recomputeStats(p); }
+    if (p.char.id === 'noin' && p.level % 5 === 0) p.noinLevels++;
+    recomputeStats(p);                  // baseline +2HP/+1%dmg per level applies instantly
+    healPlayer(p.S.maxHp * 0.10);       // level-up moment: certain positive feedback
     p.xpNeed = BAL.xpNeed(p.level);
     G.levelupQueue++;
   }

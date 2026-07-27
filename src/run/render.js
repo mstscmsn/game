@@ -255,7 +255,14 @@ function drawPickups(ctx) {
     else if (k.type === 'confession') spr = SPRITES.misc.confession;
     else if (k.type === 'gift') spr = SPRITES.misc.chest;
     if (spr) {
-      if (k.type === 'confession' || k.type === 'chest') {
+      // tribunal seals chests/gifts: dim them and drop the golden lure so
+      // "not pickable right now" reads visually instead of like a broken pickup
+      const sealed = G.phase === 'tribunal' && (k.type === 'chest' || k.type === 'gift');
+      if (sealed) {
+        ctx.globalAlpha = 0.45;
+        ctx.drawImage(spr, k.x - spr.width / 2, k.y - spr.height / 2 + bob);
+        ctx.globalAlpha = 1;
+      } else if (k.type === 'confession' || k.type === 'chest') {
         ctx.save();
         ctx.shadowColor = '#B58D3B'; ctx.shadowBlur = 8;
         ctx.drawImage(spr, k.x - spr.width / 2, k.y - spr.height / 2 + bob);
@@ -435,10 +442,11 @@ function drawPlayer(ctx, p) {
     ctx.drawImage(spr, -spr.width / 2, -spr.height / 2);
     ctx.restore();
   }
-  // shield ring
+  // shield ring — flares thick & bright for a beat when it just absorbed a hit
   if (p.shield > 0) {
-    ctx.strokeStyle = 'rgba(70,96,138,0.75)';
-    ctx.lineWidth = 2;
+    const hit = p.shieldHitT > 0;
+    ctx.strokeStyle = hit ? 'rgba(120,160,220,1)' : 'rgba(70,96,138,0.75)';
+    ctx.lineWidth = hit ? 4 : 2;
     ctx.beginPath(); ctx.arc(p.x, p.y, 24, 0, TAU * Math.min(1, p.shield / (p.S.maxHp * 0.3))); ctx.stroke();
   }
   // dodge ghost
@@ -722,12 +730,12 @@ function drawHUD(ctx, p) {
   const boneCol = heaven ? '#6b6252' : '#D8C7A4';
   ctx.font = '12px serif';
 
-  /* top-left: portrait + hp/shield */
+  /* top-left: portrait + hp/shield (52px strip: room for 15px key numbers) */
   const px0 = 10, py0 = safeTop;
   ctx.fillStyle = 'rgba(11,10,12,0.55)';
-  ctx.fillRect(px0, py0, 190, 46);
+  ctx.fillRect(px0, py0, 190, 52);
   const spr = SPRITES.chars[p.char.id];
-  if (spr) ctx.drawImage(spr, px0 + 3, py0 + 3, 40, 40);
+  if (spr) ctx.drawImage(spr, px0 + 3, py0 + 3, 46, 46);
   // cracked portrait when hurt
   if (p.hp < S.maxHp * 0.35) {
     ctx.strokeStyle = 'rgba(212,71,79,0.8)'; ctx.lineWidth = 1;
@@ -756,7 +764,8 @@ function drawHUD(ctx, p) {
     }
   }
   ctx.fillStyle = boneCol;
-  ctx.fillText(`${Math.ceil(p.hp)} / ${S.maxHp}`, px0 + 52, py0 + 16);
+  ctx.font = '15px serif';
+  ctx.fillText(`${Math.ceil(p.hp)} / ${S.maxHp}`, px0 + 52, py0 + 17);
   if (p.shield > 0) bar(ctx, px0 + 48, py0 + 20, 134 * clamp(p.shield / S.maxHp, 0, 1), 4, 1, '#46608a');
   // armor + buffs line
   let buffs = `护甲${Math.round(S.armor)}`;
@@ -764,8 +773,8 @@ function drawHUD(ctx, p) {
   if (p.coffinLayers > 0) buffs += ` · 棺甲×${p.coffinLayers}`;
   if (G.echoAllT > 0) buffs += ' · 回响';
   ctx.fillStyle = heaven ? '#8a8069' : '#8f8570';
-  ctx.font = '10px serif';
-  ctx.fillText(buffs, px0 + 48, py0 + 40);
+  ctx.font = '13px serif';
+  ctx.fillText(buffs, px0 + 48, py0 + 46);
 
   /* top-center: time + area + knell */
   ctx.textAlign = 'center';
@@ -773,31 +782,38 @@ function drawHUD(ctx, p) {
   const toKnell = knell - G.time;
   const bleeding = !G.executed && isFinite(knell) && toKnell < 60 && (G.mode === 'pilgrimage' || G.mode === 'daily');
   ctx.fillStyle = 'rgba(11,10,12,0.55)';
-  ctx.fillRect(w / 2 - 62, py0, 124, 34);
+  ctx.fillRect(w / 2 - 62, py0, 124, 38);
   if (bleeding) {
     ctx.fillStyle = `rgba(142,31,47,${0.3 + 0.25 * Math.sin(G.time * 6)})`;
-    ctx.fillRect(w / 2 - 62, py0 + 30, 124, 4 + 3 * Math.sin(G.time * 6));
+    ctx.fillRect(w / 2 - 62, py0 + 34, 124, 4 + 3 * Math.sin(G.time * 6));
   }
   ctx.fillStyle = bleeding ? '#D4474F' : boneCol;
   ctx.font = 'bold 17px serif';
   ctx.fillText(fmtTime(G.time), w / 2, py0 + 17);
-  ctx.font = '10px serif';
+  ctx.font = '13px serif';
   ctx.fillStyle = heaven ? '#8a8069' : '#8f8570';
-  ctx.fillText(G.area ? G.area.name : '', w / 2, py0 + 30);
+  ctx.fillText(G.area ? G.area.name : '', w / 2, py0 + 33);
   // progress ring: knell countdown once armed, else boss-approach for this area
   if ((G.mode === 'pilgrimage' || G.mode === 'daily' || G.mode === 'chapter') && G.areaId !== 'corridor') {
-    let frac = 0, col = '#B58D3B';
+    let frac = 0, col = '#B58D3B', approaching = false;
     if (!G.executed && isFinite(knell)) { frac = clamp(1 - toKnell / 60, 0, 1); col = '#D4474F'; }
     else if (G.boss) { frac = 1; col = '#D4474F'; }
     else if (G.area && G.area.boss) {
       const wait = G.mode === 'chapter' ? 300 : BAL.bossAfter;
       frac = clamp((G.time - G.areaEnteredAt) / wait, 0, 1);
+      approaching = true;
     }
     ctx.strokeStyle = col;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(w / 2 + 74, py0 + 17, 10, -Math.PI / 2, -Math.PI / 2 + TAU * frac);
     ctx.stroke();
+    // label the unnamed gold ring right before it delivers a boss
+    if (approaching && frac > 0.75) {
+      ctx.fillStyle = '#B58D3B';
+      ctx.font = '9px serif';
+      ctx.fillText('强敌将至', w / 2 + 74, py0 + 38);
+    }
   } else if (G.mode === 'endless') {
     // world-layer progress: how deep into the current 8-minute loop
     const frac = (G.time % 480) / 480;
@@ -807,8 +823,8 @@ function drawHUD(ctx, p) {
     ctx.arc(w / 2 + 74, py0 + 17, 10, -Math.PI / 2, -Math.PI / 2 + TAU * frac);
     ctx.stroke();
     ctx.fillStyle = '#8f8570';
-    ctx.font = '9px serif';
-    ctx.fillText(`层${G.loopN + 1}`, w / 2 + 74, py0 + 20);
+    ctx.font = '12px serif';
+    ctx.fillText(`层${G.loopN + 1}`, w / 2 + 74, py0 + 21);
   }
 
   /* boss hp — wide, thick, named in bold, with damage lag-chunk */
@@ -819,51 +835,51 @@ function drawHUD(ctx, p) {
     if (b._dispHp === undefined || b._dispHp < bFrac) b._dispHp = bFrac;
     else b._dispHp = Math.max(bFrac, b._dispHp - 0.25 * rdt);
     ctx.fillStyle = 'rgba(11,10,12,0.7)';
-    ctx.fillRect(w / 2 - bw / 2 - 4, py0 + 42, bw + 8, 26);
-    bar(ctx, w / 2 - bw / 2, py0 + 46, bw, 9, bFrac, '#D4474F', '#1b171c');
+    ctx.fillRect(w / 2 - bw / 2 - 4, py0 + 48, bw + 8, 26);
+    bar(ctx, w / 2 - bw / 2, py0 + 52, bw, 9, bFrac, '#D4474F', '#1b171c');
     if (b._dispHp > bFrac + 0.003) {
       ctx.fillStyle = 'rgba(238,235,221,0.55)';
-      ctx.fillRect(w / 2 - bw / 2 + bw * bFrac, py0 + 46, bw * (b._dispHp - bFrac), 9);
+      ctx.fillRect(w / 2 - bw / 2 + bw * bFrac, py0 + 52, bw * (b._dispHp - bFrac), 9);
     }
     ctx.fillStyle = '#D8C7A4';
     ctx.font = 'bold 12px serif';
     const bn = { anlo: '裂腹圣徒·安洛', mimi: '腐香主教·米弥', whale: '吞钟鲸', rahshiel: '堕翼审判者·拉赫希尔', margola: '地狱产婆·玛戈拉', lambking: '白羊之王', mother: '原初圣母·黑昼' }[b.id] || '';
-    ctx.fillText(bn + (b.gated ? ' 【胎炉守护】' : ''), w / 2, py0 + 65);
+    ctx.fillText(bn + (b.gated ? ' 【胎炉守护】' : ''), w / 2, py0 + 71);
   }
   /* tribunal timer */
   if (G.phase === 'tribunal' && G.tribunal) {
     ctx.fillStyle = '#D4474F';
     ctx.font = 'bold 22px serif';
-    ctx.fillText(Math.ceil(G.tribunal.timeLeft) + '', w / 2, py0 + 84);
-    ctx.font = '10px serif';
-    ctx.fillText('审判限时', w / 2, py0 + 96);
+    ctx.fillText(Math.ceil(G.tribunal.timeLeft) + '', w / 2, py0 + 90);
+    ctx.font = '11px serif';
+    ctx.fillText('审判限时', w / 2, py0 + 103);
   }
   /* obedience meter */
   if (heaven) {
     ctx.fillStyle = 'rgba(238,235,221,0.75)';
-    ctx.fillRect(w / 2 - 80, py0 + 42, 160, 14);
-    bar(ctx, w / 2 - 76, py0 + 46, 152, 6, G.obedience / 100, G.obedience > 70 ? '#D4474F' : '#B58D3B', '#c9c4b2');
+    ctx.fillRect(w / 2 - 80, py0 + 48, 160, 18);
+    bar(ctx, w / 2 - 76, py0 + 53, 152, 6, G.obedience / 100, G.obedience > 70 ? '#D4474F' : '#B58D3B', '#c9c4b2');
     ctx.fillStyle = '#4a4438';
-    ctx.font = '9px serif';
-    ctx.fillText(`顺从 ${Math.round(G.obedience)} / 100 —— 于阴影中醒着`, w / 2, py0 + 52);
+    ctx.font = '12px serif';
+    ctx.fillText(`顺从 ${Math.round(G.obedience)} / 100 —— 于阴影中醒着`, w / 2, py0 + 62);
   }
   ctx.textAlign = 'left';
 
   /* top-right: kills/level/ash + pause */
   ctx.textAlign = 'right';
   ctx.fillStyle = 'rgba(11,10,12,0.55)';
-  ctx.fillRect(w - 148, py0, 138, 46);
+  ctx.fillRect(w - 148, py0, 138, 52);
   ctx.fillStyle = boneCol;
-  ctx.font = '11px serif';
-  ctx.fillText(`击杀 ${fmt(G.kills)}`, w - 46, py0 + 14);
-  ctx.fillText(`Lv.${p.level}`, w - 46, py0 + 28);
-  ctx.fillText(`灰烬 ${fmt(G.runResources.ash)}`, w - 46, py0 + 42);
+  ctx.font = '15px serif';
+  ctx.fillText(`击杀 ${fmt(G.kills)}`, w - 46, py0 + 15);
+  ctx.fillText(`Lv.${p.level}`, w - 46, py0 + 31);
+  ctx.fillText(`灰烬 ${fmt(G.runResources.ash)}`, w - 46, py0 + 47);
   // pause button (generous hit zone for thumbs)
   ctx.strokeStyle = boneCol; ctx.lineWidth = 2;
-  ctx.strokeRect(w - 40, py0 + 6, 30, 30);
-  ctx.fillRect(w - 33, py0 + 13, 5, 16);
-  ctx.fillRect(w - 23, py0 + 13, 5, 16);
-  input.btns.pause = { x: w - 25, y: py0 + 21, r: 32, cb: window.__PAUSE };
+  ctx.strokeRect(w - 40, py0 + 11, 30, 30);
+  ctx.fillRect(w - 33, py0 + 18, 5, 16);
+  ctx.fillRect(w - 23, py0 + 18, 5, 16);
+  input.btns.pause = { x: w - 25, y: py0 + 26, r: 32, cb: window.__PAUSE };
   ctx.textAlign = 'left';
 
   /* xp bar — with a visible track + gain shimmer pulse */
@@ -872,11 +888,11 @@ function drawHUD(ctx, p) {
   lastXpFrac = xpFrac;
   xpPulse = Math.max(0, xpPulse - rdt);
   ctx.fillStyle = '#1b171c';
-  ctx.fillRect(0, py0 + 48, w, 4);
-  bar(ctx, 0, py0 + 48, w * xpFrac, 4, 1, '#46608a');
+  ctx.fillRect(0, py0 + 54, w, 4);
+  bar(ctx, 0, py0 + 54, w * xpFrac, 4, 1, '#46608a');
   if (xpPulse > 0) {
     ctx.fillStyle = `rgba(154,180,220,${xpPulse * 0.9})`;
-    ctx.fillRect(Math.max(0, w * xpFrac - 26), py0 + 48, 26, 4);
+    ctx.fillRect(Math.max(0, w * xpFrac - 26), py0 + 54, 26, 4);
   }
 
   /* bottom-center: weapon slots */
@@ -898,19 +914,25 @@ function drawHUD(ctx, p) {
       const ic = wp.evolved ? iconEvolved(def.icon) : icon(def.icon);
       ctx.drawImage(ic, sx + 2, slotY + 2, 36, 36);
       ctx.fillStyle = wp.evolved ? '#D4474F' : '#B58D3B';
-      ctx.font = 'bold 10px serif';
-      ctx.fillText(wp.evolved ? 'A' : wp.lv, sx + 30, slotY + 37);
+      ctx.font = 'bold 13px serif';
+      ctx.fillText(wp.evolved ? 'A' : wp.lv, sx + 28, slotY + 37);
       // fusion gold edge when catalyst owned & near max
       const hasCat = p.catalysts.some(c => c.id === def.catalyst);
-      if (!wp.evolved && hasCat && wp.lv >= 7) {
+      if (!wp.evolved && hasCat && wp.lv === 7) {
         ctx.strokeStyle = `rgba(181,141,59,${0.5 + 0.4 * Math.sin(G.time * 5)})`;
         ctx.lineWidth = 2;
         ctx.strokeRect(sx - 1, slotY - 1, 42, 42);
       }
       if (!wp.evolved && hasCat && wp.lv >= 8) {
-        // ready: connecting line to center
-        ctx.strokeStyle = '#B58D3B';
-        ctx.beginPath(); ctx.moveTo(sx + 20, slotY - 4); ctx.lineTo(sx + 20, slotY - 10); ctx.stroke();
+        // ready: whole-slot golden breath + label (the old 6px tick was invisible)
+        ctx.strokeStyle = `rgba(181,141,59,${0.5 + 0.4 * Math.sin(G.time * 5)})`;
+        ctx.lineWidth = 2.5;
+        ctx.strokeRect(sx - 2, slotY - 2, 44, 44);
+        ctx.fillStyle = '#B58D3B';
+        ctx.font = '9px serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('就绪', sx + 20, slotY - 5);
+        ctx.textAlign = 'left';
       }
     }
   }
@@ -944,7 +966,7 @@ function drawHUD(ctx, p) {
 
   /* dodge + sin buttons — raised into the natural thumb arc, enlarged,
    * stacked along the screen edge clear of the weapon-slot row */
-  const bx = swap ? 78 : w - 78, by = h - 186 - safeBot;   // sin center
+  const bx = swap ? 78 : w - 78, by = h - 200 - safeBot;   // sin center (lifted clear of dodge)
   const dx = swap ? 70 : w - 70, dy = h - 92 - safeBot;    // dodge center
   ctx.textAlign = 'center';
   const pressed = (name) => input.pressFx && input.pressFx.name === name && performance.now() - input.pressFx.t < 160;
@@ -984,8 +1006,22 @@ function drawHUD(ctx, p) {
   ctx.fillStyle = full ? '#e8b0b8' : boneCol;
   ctx.font = 'bold 15px serif';
   ctx.fillText(p.char.sin.name, bx, by + 5);
-  if (!full) { ctx.font = '10px serif'; ctx.fillStyle = heaven ? '#8a8069' : '#8f8570'; ctx.fillText(`${Math.floor(p.sin.charge)}/${p.sin.need}`, bx, by + 24); }
+  if (!full) { ctx.font = '13px serif'; ctx.fillStyle = heaven ? '#8a8069' : '#8f8570'; ctx.fillText(`${Math.floor(p.sin.charge)}/${p.sin.need}`, bx, by + 24); }
   input.btns.skill = { x: bx, y: by, r: 52 };
+  // first-charge tutorial: falling arrow over the sin button (combat.js arms the timer)
+  if (G.sinReadyHintT > 0 && full) {
+    const drop = ((G.time * 40) % 18);
+    const ay = by - 78 + drop;
+    ctx.globalAlpha = 0.55 + 0.45 * Math.sin(G.time * 8);
+    ctx.fillStyle = '#B58D3B';
+    ctx.beginPath();
+    ctx.moveTo(bx, ay + 12); ctx.lineTo(bx - 8, ay); ctx.lineTo(bx + 8, ay);
+    ctx.closePath(); ctx.fill();
+    ctx.fillRect(bx - 3, ay - 12, 6, 12);
+    ctx.globalAlpha = 0.95;
+    ctx.font = 'bold 12px serif';
+    ctx.fillText('罪技已就绪', bx, ay - 20);
+  }
   ctx.globalAlpha = 1;
   ctx.textAlign = 'left';
   endUI(ctx);

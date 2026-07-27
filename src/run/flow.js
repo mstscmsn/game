@@ -17,6 +17,8 @@ export function enterArea(areaId, opts = {}) {
   G.area = AREAS[areaId];
   G.areaEnteredAt = G.time;
   G.bossSpawned = false;
+  G.bossWarned = false;           // 每章一次的 boss 预警 banner
+  G.chapterDone = false;          // 章节狩猎结算闩
   G.surged1 = false; G.surged2 = false;
   G.eliteT = 45;                  // each chapter's elite lands on a fixed beat
   G.areaVisits = G.areaVisits || {};
@@ -44,6 +46,11 @@ export function updateFlow(dt) {
     if (!G.executed && t >= knell) { startReaper(); return; }
     // area boss: spawns on a per-area clock, must be defeated to advance
     const area = AREAS[G.areaId];
+    // one-shot 10s heads-up so the arrival never reads as an ambush
+    if (area && area.boss && !G.bossSpawned && !G.boss && !G.bossWarned && G.areaId !== 'corridor' && t - G.areaEnteredAt >= BAL.bossAfter - 10) {
+      G.bossWarned = true;
+      window.__BANNER && window.__BANNER('', '钟声渐近——强敌将至');
+    }
     if (area && area.boss && !G.bossSpawned && !G.boss && t - G.areaEnteredAt >= BAL.bossAfter && G.areaId !== 'corridor') {
       G.bossSpawned = true;
       spawnBoss(area.boss);
@@ -55,8 +62,14 @@ export function updateFlow(dt) {
     }
   } else if (G.mode === 'chapter') {
     // 6-minute chapter hunt: boss at 5min, ends once it falls
+    if (t >= 290 && !G.bossWarned && !G.bossSpawned && AREAS[G.areaId].boss) { G.bossWarned = true; window.__BANNER && window.__BANNER('', '钟声渐近——强敌将至'); }
     if (t >= 300 && !G.bossSpawned && AREAS[G.areaId].boss) { G.bossSpawned = true; spawnBoss(AREAS[G.areaId].boss); }
-    if (t >= 360 && G.bossSpawned && !G.boss) endRun(true, '章节完成');
+    // boss down → settle after a 3s buffer (no more idling out the clock)
+    if (G.bossSpawned && !G.boss && !G.chapterDone) {
+      G.chapterDone = true;
+      toastLines('', '狩猎完成。');
+      after(3, () => endRun(true, '章节完成'));
+    }
     if (t >= 360 && !AREAS[G.areaId].boss) endRun(true, '章节完成');
   } else if (G.mode === 'endless') {
     // 8-minute world layers
@@ -98,7 +111,22 @@ export function startReaper() {
   G.areaId = 'corridor'; G.area = AREAS.corridor;
   document.body.classList.remove('heaven-skin');
   const p = G.player;
-  G.reaper = { t: 0, x: p.x, y: p.y - 620, phase: 'walk', stepT: 0 };
+  G.reaper = { t: 0, x: p.x, y: p.y - 620, phase: 'walk', stepT: 0, held: false };
+  // veterans may hold to fast-forward the walk (the very first death keeps full ceremony)
+  if ((META.deaths || 0) > 0) {
+    G.reaper.canRush = true;
+    const down = () => { if (G.reaper) G.reaper.held = true; };
+    const up = () => { if (G.reaper) G.reaper.held = false; };
+    document.addEventListener('pointerdown', down);
+    document.addEventListener('pointerup', up);
+    document.addEventListener('pointercancel', up);
+    G.reaper.unbind = () => {
+      document.removeEventListener('pointerdown', down);
+      document.removeEventListener('pointerup', up);
+      document.removeEventListener('pointercancel', up);
+    };
+    window.__BANNER && window.__BANNER('', '长按屏幕加速');
+  }
   // the most-repeated scripted moment in the game rotates its script:
   // veterans who beat the tribunal get a colder greeting
   const alts = STORY.reaper.appearAlt || [];
@@ -120,15 +148,17 @@ export function updateReaper(dt) {
   r.t += dt;
   if (r.phase === 'walk') {
     const d = Math.hypot(p.x - r.x, p.y - r.y);
-    r.x += (p.x - r.x) / (d || 1) * 90 * dt;
-    r.y += (p.y - r.y) / (d || 1) * 90 * dt;
+    const spd = r.held ? 360 : 90;                     // long-press fast-forward
+    r.x += (p.x - r.x) / (d || 1) * spd * dt;
+    r.y += (p.y - r.y) / (d || 1) * spd * dt;
     r.stepT -= dt;
     if (r.stepT <= 0) { r.stepT = 0.8; sfx.reaperStep(); addShake(2); }
     if (d < 90) { r.phase = 'raise'; r.t = 0; }
   } else if (r.phase === 'raise') {
     // 0.8s clear windup so the player reads it as scripted (docs §12.4)
-    if (r.t >= 0.8) {
+    if (r.t >= (r.held ? 0.3 : 0.8)) {
       r.phase = 'done';
+      r.unbind && r.unbind();
       sfx.execute(); addFlash('#EEEBDD', 1); addShake(14);
       import('./player.js').then(m => m.playerHurt(p, 999999999, { execution: true }));
     }
@@ -142,13 +172,14 @@ export function onPlayerDeath(opts = {}) {
     META.lastDeathBy = '终末钟声';
     META.deathsBy[META.lastDeathBy] = (META.deathsBy[META.lastDeathBy] || 0) + 1;
     G.phase = 'deathchoice';
+    const rushed = G.reaper && G.reaper.held;
     setTimeout(() => {
       showDeathChoice({
         onAccept: () => endRun(false, '接受遗忘'),
         onChallenge: () => startTribunal(),
         canChallenge: !G.tribunalTried,
       });
-    }, 900);
+    }, rushed ? 200 : 900);
   } else if (G.phase === 'tribunal') {
     // lost the tribunal → normal settlement, resources kept
     tribunalFail();
@@ -230,8 +261,11 @@ function tribunalFail() {
   META.stats.tribunalLosses = (META.stats.tribunalLosses || 0) + 1;
   saveMeta();
   G.tribunal = null;
+  // 败者参与奖：连败也在攒堕翼树的骨片，失败本身在变强
+  G.runResources.bone += 2;
   G.phase = 'story';
-  const lines = again && STORY.rahshiel.lose2 ? STORY.rahshiel.lose2 : STORY.rahshiel.lose;
+  const base = again && STORY.rahshiel.lose2 ? STORY.rahshiel.lose2 : STORY.rahshiel.lose;
+  const lines = [...base, '拉赫希尔折下一根黑羽，扔在你脚边。（骨片+2）'];
   storyRoll(lines, () => endRun(false, '审判失败'), STORY.bosses.rahshiel.name);
 }
 
@@ -345,6 +379,10 @@ export function endRun(victory, reason) {
   stopMusic();
   // settle resources
   const R = G.runResources;
+  // levels themselves pay out ash — dying at Lv6 still funded the notary
+  R.ash += (G.player ? G.player.level : 1) * 8;
+  // early-account floor: the first few runs never come home empty-handed
+  if (META.runs <= 3) R.ash = Math.max(R.ash, 150);
   META.res.ash += Math.round(R.ash);
   META.res.nail += R.nail;
   META.res.bone += R.bone;
@@ -366,7 +404,8 @@ export function endRun(victory, reason) {
   const pilgrimish = G.mode === 'pilgrimage' || G.mode === 'daily';
   if (pilgrimish && !victory && G.time < 300 && !G.executed) META.mercy = Math.min(2, META.mercy + 1);
   if (pilgrimish && (G.executed || victory)) META.mercy = 0;
-  if (META.mercyOff && META.mercy > 0) META.res.ash = Math.round(META.res.ash + R.ash * 0.1);
+  // 关闭棺中慈悲＝无条件 +25% 灰烬（与设置页文案一致，不再暗改条件）
+  if (META.mercyOff) META.res.ash = Math.round(META.res.ash + R.ash * 0.25);
   // cursed clear stat (vielna unlock)
   const p = G.player;
   if (p && p.relics.filter(r => ['closedeye', 'umbilical', 'hourglass', 'invitation', 'sindice', 'strayKey', 'skinmap', 'holidaycrown'].includes(r)).length >= 3 && (victory || G.bossKills > 0)) {

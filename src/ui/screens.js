@@ -156,7 +156,12 @@ export function mainMenu() {
   quote.style.marginBottom = '22px';
   s.appendChild(quote);
   s.appendChild(btn(META.runs === 0 ? '初醒' : '无灯旅店', () => META.runs === 0 ? introStory() : hubScreen(), 'btn primary'));
-  if (META.runs > 0) s.appendChild(btn('快速出发', () => charSelect()));
+  if (META.runs > 0) {
+    // one-tap relaunch of the last loadout — title → battle without a single detour
+    const lastDiff = BAL.difficulties[META.lastDifficulty] ? META.lastDifficulty : 'pilgrim';
+    const qc = META.lastRunSummary && META.unlockedChars.includes(META.lastRunSummary.char) ? META.lastRunSummary.char : 'adric';
+    s.appendChild(btn(`快速出发 · ${CHAR_BY_ID[qc].short} · ${BAL.difficulties[lastDiff].name}`, () => launch(qc, lastDiff, META.lastSinMarks || 0)));
+  }
   s.appendChild(btn('设置', () => settingsScreen(mainMenu)));
   s.appendChild(btn('关于', () => aboutScreen()));
   const tip = el('div', 'sc-note', `<br>${STORY.whispers[(Math.random() * STORY.whispers.length) | 0]}`);
@@ -168,7 +173,7 @@ function aboutScreen() {
   const s = screen();
   s.appendChild(el('div', 'sc-title', '关于'));
   s.appendChild(el('div', 'divider'));
-  s.appendChild(el('div', 'sc-note', `逆圣：黑日遗嘱 v1.4<br>ANATHEMA — TESTAMENT OF THE BLACK SUN<br><br>暗黑哥特 Roguelite 幸存者游戏<br>全部美术·音乐·剧情为程序化原创生成<br><br>操作：左摇杆移动 / 右侧闪避与罪技<br>键盘：WASD移动 · 空格闪避 · Q罪技 · ESC暂停`));
+  s.appendChild(el('div', 'sc-note', `逆圣：黑日遗嘱 v1.5<br>ANATHEMA — TESTAMENT OF THE BLACK SUN<br><br>暗黑哥特 Roguelite 幸存者游戏<br>全部美术·音乐·剧情为程序化原创生成<br><br>操作：左摇杆移动 / 右侧闪避与罪技<br>键盘：WASD移动 · 空格闪避 · Q罪技 · ESC暂停`));
   s.appendChild(el('div', 'divider'));
   s.appendChild(btn('返回', mainMenu));
 }
@@ -252,6 +257,8 @@ export function hubScreen() {
     const icc = cloneCanvas(icon(ic));
     icc.style.cssText = 'width:30px;height:30px;display:block;margin:0 auto 4px;opacity:.85;';
     d.prepend(icc);
+    // notary red dot: unspent ash that could already buy something
+    if (id === 'notary' && buyableNodeCount() > 0) d.appendChild(el('div', 'dot'));
     d.addEventListener('click', () => { sfx.select(); cb(); });
     grid.appendChild(d);
   }
@@ -264,6 +271,10 @@ function resBar() {
   const r = META.res;
   return el('div', 'res-bar',
     `灰烬记忆 <b>${fmt(r.ash)}</b> · 圣徒铁钉 <b>${r.nail}</b> · 堕翼骨片 <b>${r.bone}</b> · 伊甸花粉 <b>${r.pollen}</b> · 黑日之瞳 <b>${r.eye}</b>`);
+}
+// how many tree nodes the player could buy right now (results CTA + notary dot)
+function buyableNodeCount() {
+  return Object.values(TREES).reduce((a, t) => a + t.nodes.filter(canBuyNode).length, 0);
 }
 function waiterTalk() {
   const twist = META.firstClear || META.endings.length > 0;
@@ -286,12 +297,12 @@ export function charSelect() {
     const w = WEAPON_BY_ID[c.weapon];
     detail.innerHTML = `<b>${c.name}</b><br>初始武器：${w.name} — ${w.desc}<br>特性：${c.trait}<br><span class="sin">罪技「${c.sin.name}」：${c.sin.desc}</span><br><i style="opacity:.7">${c.lore}</i>`;
   };
-  // double-tap a character = launch immediately with the last-used difficulty
-  const quickStart = () => {
-    const lastDiff = META.lastDifficulty && BAL.difficulties[META.lastDifficulty] ? META.lastDifficulty : 'pilgrim';
-    launch(selected, lastDiff, 0);
-  };
+  // double-tap a character = launch immediately with the last-used loadout
+  const lastDiff = META.lastDifficulty && BAL.difficulties[META.lastDifficulty] ? META.lastDifficulty : 'pilgrim';
+  const marks = META.lastSinMarks || 0;
+  const quickStart = () => launch(selected, lastDiff, marks);
   let lastTap = { id: null, t: 0 };
+  const lockedGrid = el('div', 'char-grid');
   for (const c of CHARACTERS) {
     const unlocked = isCharUnlocked(c);
     const card = el('div', 'char-card' + (unlocked ? '' : ' locked'));
@@ -311,15 +322,25 @@ export function charSelect() {
       renderDetail();
     });
     if (c.id === selected) card.classList.add('sel');
-    grid.appendChild(card);
+    // unlocked bodies first — a newcomer lands on 1 row + the CTA, not a wall of locks
+    (unlocked ? grid : lockedGrid).appendChild(card);
   }
   s.appendChild(grid);
   renderDetail();
   s.appendChild(detail);
-  s.appendChild(el('div', 'divider'));
-  s.appendChild(btn('出发（上次难度）', quickStart, 'btn primary'));
-  s.appendChild(btn('选择难度与罪印…', () => difficultySelect(selected), 'btn'));
-  s.appendChild(btn('返回旅店', hubScreen, 'btn ghost'));
+  // sticky action bar: the launch CTA never sinks below the fold
+  const bar = el('div', 'char-actions');
+  const goLabel = META.runs === 0 ? '出发 · 朝圣'
+    : `出发 · ${BAL.difficulties[lastDiff].name}${marks ? ` · 罪印×${marks}` : ''}`;
+  bar.appendChild(btn(goLabel, quickStart, 'btn primary'));
+  bar.appendChild(btn(META.runs < 2 ? '选择难度…' : '选择难度与罪印…', () => difficultySelect(selected), 'btn'));
+  bar.appendChild(btn('返回旅店', hubScreen, 'btn ghost'));
+  s.appendChild(bar);
+  if (lockedGrid.children.length) {
+    s.appendChild(el('div', 'divider'));
+    s.appendChild(el('div', 'sc-sub', '未解锁的躯体'));
+    s.appendChild(lockedGrid);
+  }
 }
 
 function difficultySelect(charId) {
@@ -333,7 +354,7 @@ function difficultySelect(charId) {
     const b = btn(`<div><div style="letter-spacing:6px">${d.name}${locked ? ' ✕' : ''}</div><div style="font-size:11px;letter-spacing:1px;opacity:.7;margin-top:2px">敌人 ${Math.round(d.hp * 100)}% · 奖励 ${Math.round(d.reward * 100)}%${locked ? ' · 通关前一难度解锁' : ''}</div></div>`, () => {
       if (locked) return;
       sinMarkSelect(charId, id);
-    }, 'btn' + (i === 1 ? ' primary' : '') + (locked ? ' ghost' : ''));
+    }, 'btn' + (id === (BAL.difficulties[META.lastDifficulty] ? META.lastDifficulty : 'pilgrim') && !locked ? ' primary' : '') + (locked ? ' ghost' : ''));
     s.appendChild(b);
   });
   s.appendChild(el('div', 'sc-note', '通关朝圣可解锁更高难度'));
@@ -352,6 +373,7 @@ function sinMarkSelect(charId, diff) {
 }
 function launch(charId, diff, sinMarks, mode = 'pilgrimage', areaId = 'ashfield') {
   META.lastDifficulty = diff;
+  META.lastSinMarks = sinMarks;   // quick starts keep the sin-mark loadout
   saveMeta();
   clear();
   startRunFn && startRunFn({ charId, difficulty: diff, sinMarks, mode, areaId });
@@ -427,6 +449,7 @@ export function treeScreen(treeIds) {
   const tabs = el('div', 'tree-tabs');
   const list = el('div', 'node-list');
   let cur = treeIds[0];
+  let armedId = null, armedT = 0;   // two-stage purchase: first tap arms, second confirms
   const render = () => {
     list.innerHTML = '';
     const tree = TREES[cur];
@@ -441,11 +464,46 @@ export function treeScreen(treeIds) {
         <div><div class="pips">${'●'.repeat(r)}${'○'.repeat(n.maxRank - r)}</div>
         <div class="cost ${maxed ? '' : can ? 'ok' : 'no'}">${maxed ? '已满' : `${n.cost(r)}${resName}${extra}`}</div></div>`;
       div.addEventListener('click', () => {
+        if (maxed) { sfx.select(); return; }
+        const costEl = div.querySelector('.cost');
+        if (!canBuyNode(n)) {
+          // can't afford: shake + tell the player exactly how much is missing
+          (sfx.deny || sfx.hurt)();
+          div.classList.remove('deny-shake'); void div.offsetWidth;
+          div.classList.add('deny-shake');
+          const lack = n.cost(r) - META.res[n.res];
+          const msg = lack > 0 ? `还差${lack}${resName}`
+            : n.needNail && META.res.nail < n.needNail ? `还差铁钉×${n.needNail - META.res.nail}`
+            : n.needPollen && META.res.pollen < n.needPollen ? `还差花粉×${n.needPollen - META.res.pollen}`
+            : n.needEye && META.res.eye < n.needEye ? `还差黑日之瞳×${n.needEye - META.res.eye}`
+            : '条件不足';
+          const orig = costEl.innerHTML;
+          costEl.innerHTML = `<span style="color:var(--danger)">${msg}</span>`;
+          setTimeout(() => { if (costEl.isConnected) costEl.innerHTML = orig; }, 1200);
+          return;
+        }
+        if (armedId !== n.id || performance.now() - armedT > 2000) {
+          // arm: no ash leaves the purse on a first (possibly exploratory) tap
+          armedId = n.id; armedT = performance.now();
+          sfx.select();
+          div.classList.add('arm');
+          costEl.innerHTML = '<span style="color:var(--gold)">再点确认 ✓</span>';
+          setTimeout(() => {
+            if (armedId === n.id && performance.now() - armedT >= 1900 && div.isConnected) { armedId = null; render(); }
+          }, 2000);
+          return;
+        }
+        armedId = null;
+        const spent = n.cost(nodeRank(n.id));
         if (buyNode(n)) {
           sfx.levelup();
           treeRefresh();
           const nd = [...list.children].find(x => x.textContent.includes(n.name));
           if (nd) nd.classList.add('bought-flash');
+          // "-N 灰烬" drifts up from the res bar so the price is felt, not just subtracted
+          const fl = el('div', 'spend-float', `-${spent} ${resName}`);
+          s.appendChild(fl);
+          setTimeout(() => fl.remove(), 800);
         }
         else sfx.select();
       });
@@ -474,10 +532,29 @@ export function codexScreen() {
   const s = screen();
   s.appendChild(el('div', 'sc-title', '铁钉神父'));
   s.appendChild(el('div', 'sc-sub', '武器与神器图鉴 · 未见者只余剪影'));
+  // sticky section nav: the page is 2.5 screens tall — jump anywhere, leave anywhere
+  const anchors = {};
+  const nav = el('div', 'codex-nav');
+  for (const [label, key] of [['武器', '普通武器'], ['神器', '神器'], ['禁器', '创世禁器'], ['结局', '结局'], ['告解', '告解匣']]) {
+    const t = el('div', 'codex-tab', label);
+    t.addEventListener('click', () => { sfx.select(); anchors[key] && anchors[key].scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    nav.appendChild(t);
+  }
+  const backTab = el('div', 'codex-tab codex-back', '←返回');
+  backTab.addEventListener('click', () => { sfx.select(); hubScreen(); });
+  nav.appendChild(backTab);
+  s.appendChild(nav);
+  // detail panel sticks under the nav — tapping a grid item far below still shows feedback
   const detail = el('div', 'codex-detail', '触摸图鉴查看详情。未发现的神器只显示剪影与模糊的传闻。');
   s.appendChild(detail);
+  const markOn = (d) => {
+    s.querySelectorAll('.codex-item.on, .conf-item.on').forEach(x => x.classList.remove('on'));
+    d.classList.add('on');
+  };
   const addGrid = (title, items) => {
-    s.appendChild(el('div', 'sc-sub', title));
+    const sub = el('div', 'sc-sub codex-anchor', title);
+    anchors[title] = sub;
+    s.appendChild(sub);
     const grid = el('div', 'codex-grid');
     for (const it of items) {
       const known = it.known;
@@ -485,6 +562,8 @@ export function codexScreen() {
       d.appendChild(cloneCanvas(it.icon));
       d.appendChild(el('div', 'cn', known ? it.name : '？？？'));
       d.addEventListener('click', () => {
+        sfx.select();
+        markOn(d);
         detail.innerHTML = known ? `<b>${it.name}</b><br>${it.desc}` : `<b>？？？</b><br>${it.hint || '铁钉神父摇头：「它还没有原谅你。」'}`;
       });
       grid.appendChild(d);
@@ -496,7 +575,9 @@ export function codexScreen() {
   addGrid('创世禁器', FORBIDDEN.map(f => ({ known: META.seenForbidden.includes(f.id), name: f.name, desc: f.desc + `<br>需要：${f.needs.map(a => Object.values(WEAPON_BY_ID).find(w => w.artifact.id === a).artifact.name).join(' + ')} + 世界核心「${f.core}」`, icon: iconForbidden(f.icon), hint: '两件神器与一颗世界核心的低语。' })));
   addGrid('结局', Object.entries(STORY.endings).map(([id, e]) => ({ known: META.endings.includes(id), name: e.title, desc: e.lines.slice(0, 2).join('<br>'), icon: icon(id === 'dawn' ? 'sun' : id === 'whitedream' ? 'mask' : id === 'hellking' ? 'seedface' : id === 'blackcrown' ? 'ring' : 'hourglass') })));
   // —— 告解匣：collected confessions become a readable archive, not one-shot toasts ——
-  s.appendChild(el('div', 'sc-sub', `告解匣 · ${META.confessionsFound.length} / ${STORY.confessions.length}`));
+  const confSub = el('div', 'sc-sub codex-anchor', `告解匣 · ${META.confessionsFound.length} / ${STORY.confessions.length}`);
+  anchors['告解匣'] = confSub;
+  s.appendChild(confSub);
   const saintRow = el('div', 'saint-row');
   for (let i = 1; i <= 7; i++) {
     const sid = 's' + i;
@@ -522,8 +603,10 @@ export function codexScreen() {
       const d = el('div', 'conf-item' + (found ? ' found' : ''), found ? c.title : '？？？');
       d.addEventListener('click', () => {
         sfx.select();
+        markOn(d);
+        // no scrollIntoView: the sticky detail is already on screen — jumping the
+        // scroll position back to the top made browsing confessions unusable
         detail.innerHTML = found ? `<b>${c.title}</b><br>${c.text}` : `<b>？？？</b><br>仍散落在${AREAS[aid].name}的某处。`;
-        detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       });
       wrap.appendChild(d);
     }
@@ -566,7 +649,7 @@ export function settingsScreen(back) {
   addToggle('自动拾取模式', 'autoPickup');
   addToggle('左右手UI互换', 'swapHands');
   if (META.firstClear) addToggle('1.25× 朝圣加速（已解锁）', 'speed125');
-  if (META.mercy > 0 || META.runs >= 2) addToggle(`关闭棺中慈悲（+10%资源）`, 'mercyOffFlag');
+  if (META.mercy > 0 || META.runs >= 2) addToggle(`关闭棺中慈悲（+25%灰烬）`, 'mercyOffFlag');
   s.appendChild(el('div', 'divider'));
   s.appendChild(btn('抹除全部存档', () => { if (confirm('确定抹除所有进度？此操作不可逆。')) wipeMeta(); }, 'btn ghost'));
   s.appendChild(btn('返回', back, 'btn'));
@@ -800,10 +883,23 @@ export function showResults(sum) {
   // gain lines stagger in one after another
   [...s.querySelectorAll('.gain-list')].forEach((gl, i) => { gl.style.animationDelay = (0.3 + i * 0.14) + 's'; });
   s.appendChild(el('div', 'divider'));
-  s.appendChild(btn('回到无灯旅店', hubScreen, 'btn primary'));
-  s.appendChild(btn('再次出发', () => charSelect(), 'btn'));
-  const tip = el('div', 'sc-note', STORY.tips[(Math.random() * STORY.tips.length) | 0]);
-  tip.style.opacity = '0.55';
+  // death → battle in one tap, same loadout, same mode (chapter/endless rerun as-is)
+  s.appendChild(btn('立即再战', () => {
+    if (sum.mode === 'chapter' || sum.mode === 'endless') {
+      clear();
+      startRunFn && startRunFn({ charId: sum.char, difficulty: sum.mode === 'endless' ? 'penance' : 'pilgrim', sinMarks: 0, mode: sum.mode, areaId: sum.area });
+    } else launch(sum.char, META.lastDifficulty, META.lastSinMarks || 0);
+  }, 'btn primary'));
+  // spending loop entrance: fresh ash + something affordable = go see the notary
+  const buyable = buyableNodeCount();
+  if (buyable > 0) s.appendChild(btn(`拜访灰烬公证人 · ${buyable}项可购`, () => treeScreen(['flesh', 'weaponT', 'memory']), 'btn'));
+  s.appendChild(btn('回到无灯旅店', hubScreen, 'btn'));
+  s.appendChild(btn('换人再战', () => charSelect(), 'btn'));
+  // first deaths walk the tips in order (novice → advanced); veterans get the shuffle
+  const tipIdx = META.deaths > 0 && META.deaths <= STORY.tips.length
+    ? META.deaths - 1 : (Math.random() * STORY.tips.length) | 0;
+  const tip = el('div', 'sc-note', STORY.tips[tipIdx]);
+  tip.style.opacity = '0.8';
   s.appendChild(tip);
 }
 
@@ -825,6 +921,20 @@ export function pauseMenu(onResume, onQuit) {
   }
   s.appendChild(btn('继续', () => { s.remove(); onResume(); }, 'btn primary'));
   s.appendChild(btn('设置', () => { s.remove(); settingsScreen(() => { clear(); pauseMenu(onResume, onQuit); }); }, 'btn'));
-  s.appendChild(btn('放弃本局（保留资源）', () => { s.remove(); onQuit(); }, 'btn ghost'));
+  // two-stage quit: a stray tap must not throw away a 15-minute run
+  let quitArmed = false;
+  const quitBtn = btn('放弃本局（保留资源）', () => {
+    if (quitArmed) { s.remove(); onQuit(); return; }
+    quitArmed = true;
+    quitBtn.innerHTML = '再点一次 · 确认放弃';
+    quitBtn.classList.remove('ghost'); quitBtn.classList.add('primary');
+    setTimeout(() => {
+      if (!quitArmed || !quitBtn.isConnected) return;
+      quitArmed = false;
+      quitBtn.innerHTML = '放弃本局（保留资源）';
+      quitBtn.classList.add('ghost'); quitBtn.classList.remove('primary');
+    }, 2500);
+  }, 'btn ghost');
+  s.appendChild(quitBtn);
   ui().appendChild(s);
 }

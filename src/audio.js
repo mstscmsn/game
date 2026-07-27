@@ -83,14 +83,15 @@ export function fireSound(id) {
 let lastKill = 0, killCount = 0;
 export const sfx = {
   hit() { /* intentionally silent per-hit to avoid noise walls */ },
-  kill() {
+  kill(pitch = 1) {
     const now = performance.now();
     killCount++;
     if (now - lastKill < 90) return;
     lastKill = now;
-    // denser kill-streaks ring lower and heavier — the mowing accelerates audibly
+    // denser kill-streaks ring lower and heavier — the mowing accelerates audibly;
+    // 连诛 tiers pass pitch>1 so the chain climbs a ladder
     const p = Math.min(0.5, 0.22 + killCount * 0.02);
-    const f = 900 - Math.min(400, killCount * 60) + Math.random() * 300;
+    const f = (900 - Math.min(400, killCount * 60) + Math.random() * 300) * pitch;
     killCount = 0;
     noise(0.004, 0.09, p, f, 0.8);
   },
@@ -105,6 +106,8 @@ export const sfx = {
   forbidden() { tone(55, 'sawtooth', 0.03, 1.5, 0.6, 27); setTimeout(() => tone(880, 'sine', 0.01, 1.2, 0.25, 1760), 350); noise(0.03, 1.2, 0.4, 200); },
   bell() { tone(220, 'sine', 0.005, 1.8, 0.5, 218); tone(440, 'sine', 0.005, 1.2, 0.25, 436); tone(556, 'triangle', 0.005, 0.8, 0.15); },
   bigbell() { tone(110, 'sine', 0.01, 3.0, 0.7, 108); tone(165, 'sine', 0.01, 2.2, 0.4); tone(275, 'triangle', 0.01, 1.4, 0.2); if (navigator.vibrate && (window.SETTINGS?.shake ?? 1) > 0) navigator.vibrate(120); },
+  deny() { tone(130, 'square', 0.004, 0.14, 0.22, 82); tone(87, 'sawtooth', 0.004, 0.18, 0.14, 55); },   // 低沉拒绝：买不起/条件不足
+  block() { tone(1240, 'triangle', 0.002, 0.05, 0.2, 940); noise(0.002, 0.03, 0.1, 2600, 3); },          // 短促格挡叮声：护盾/护甲全额吸收
   sinReady() { tone(587, 'sine', 0.01, 0.3, 0.25, 880); },
   sinCast() { tone(98, 'sawtooth', 0.02, 0.8, 0.5, 49); noise(0.01, 0.5, 0.35, 400); },
   boss() { tone(65, 'sawtooth', 0.05, 2, 0.5); tone(98, 'sawtooth', 0.05, 2, 0.3); },

@@ -13,16 +13,20 @@ import { addShake, addFlash } from '../engine.js';
 let uid = 1;
 const S = () => G.player.S;
 
+// 区域锚定分钟：敌人成长锚定各章设计值（区内封顶+4分钟），慢玩家不再撞上
+// 全局时钟的无限复利——boss 战期间杂兵强度冻结在 spawn 时刻的水位
+const AREA_MIN = { ashfield: 0, cathedral: 3, bells: 6, corridor: 9, tribunal: 9, hell: 12, fakeheaven: 15, trueheaven: 18, corpsesea: 21 };
+
 /* ================= spawning ================= */
 export function spawnEnemy(typeId, x, y, elite = false) {
   const def = ENEMIES[typeId];
   if (!def) return null;
-  const t = G.time / 60;
+  const ta = (AREA_MIN[G.areaId] || 0) + Math.min((G.time - G.areaEnteredAt) / 60, 4);
   const zm = BAL.zoneMult[G.areaId] || 1;
   const diffHp = G.diff.hp * (1 + G.sinMarks * 0.15) * G.secretDiffMult * (G.mode === 'endless' ? Math.pow(BAL.endless.hpPow, G.loopN) : 1);
   const diffAtk = G.diff.atk * (1 + G.sinMarks * 0.08) * (G.mode === 'endless' ? Math.pow(BAL.endless.atkPow, G.loopN) : 1);
-  let hp = BAL.enemyHp(def.hp, zm, diffHp, t);
-  let dmg = BAL.enemyAtk(def.dmg, zm, diffAtk, t);
+  let hp = BAL.enemyHp(def.hp, zm, diffHp, ta);
+  let dmg = BAL.enemyAtk(def.dmg, zm, diffAtk, ta);
   // vielna's trait only: her rare finds strengthen enemies; curse affects all
   const vielnaTax = G.player && G.player.char.id === 'vielna' ? (G.rareTaken || 0) * 0.02 : 0;
   hp *= (1 + vielnaTax + (S().curse || 0) * 0.5);
@@ -36,7 +40,8 @@ export function spawnEnemy(typeId, x, y, elite = false) {
     st: freshStatus(), kbx: 0, kby: 0, hitT: 0,
     frozenT: 0, liftT: 0, executeMark: 0, dying: 0,
     bt: G.rng() * 3, btPhase: 0,
-    xp: elite ? 25 + t * 2 : undefined,
+    // elites are always worth ~0.4 of the CURRENT level — a guaranteed jump at any stage
+    xp: elite ? Math.round(BAL.xpNeed(G.player ? G.player.level : 1) * 0.4) : undefined,
   };
   G.enemies.push(e);
   return e;
@@ -88,7 +93,11 @@ export function updateSpawner(dt) {
       const pick = weightedPick(G.rng, table.map(([id, w]) => ({ id, w })));
       const pos = spawnPos();
       const e = spawnEnemy(pick.id, pos.x, pos.y, true);
-      if (e && !G.player.relics.includes('closedeye')) num(e.x, e.y - 30, '精英出现', 'warn');
+      // warn NEXT TO the player pointing at the elite — the spawn point itself is off-screen
+      if (e && !G.player.relics.includes('closedeye')) {
+        const p2 = G.player, a2 = Math.atan2(e.y - p2.y, e.x - p2.x);
+        num(p2.x + Math.cos(a2) * 70, p2.y + Math.sin(a2) * 70, '精英逼近', 'warn');
+      }
     }
   }
   updateAreaEvents(dt);
@@ -295,7 +304,11 @@ export function updatePickups(dt) {
     }
     if (d2 < (p.r + 14) ** 2) {
       // chests/gifts stay on the floor during the tribunal — no UI interrupts there
-      if (G.phase === 'tribunal' && (k.type === 'chest' || k.type === 'gift')) continue;
+      if (G.phase === 'tribunal' && (k.type === 'chest' || k.type === 'gift')) {
+        // throttled note so walking over it doesn't read as a broken pickup
+        if (!k._sealT || G.time - k._sealT > 2) { k._sealT = G.time; num(k.x, k.y - 18, '审判中 · 封印', 'text'); }
+        continue;
+      }
       G.pickups.splice(i, 1);
       collect(k);
     } else if (k.type !== 'gem' && k.life && k.t > k.life) {
@@ -308,8 +321,19 @@ function collect(k) {
   const p = G.player;
   switch (k.type) {
     case 'gem': sfx.pickup(); addXp(p, k.v); break;
-    case 'heart': healPlayer(k.v); num(p.x, p.y - 20, '+' + k.v, 'heal'); break;
-    case 'soulheart': healPlayer(k.v); num(p.x, p.y - 20, '血魂 +' + k.v, 'heal'); break;
+    case 'heart': {
+      // show what was actually restored — no fake "+14" at full hp
+      const got = healPlayer(k.v);
+      if (got > 0) num(p.x, p.y - 20, '+' + Math.round(got), 'heal');
+      else if (!G.affixes.includes('noheal')) num(p.x, p.y - 20, '生命已满', 'text');
+      break;
+    }
+    case 'soulheart': {
+      const got = healPlayer(k.v);
+      if (got > 0) num(p.x, p.y - 20, '血魂 +' + Math.round(got), 'heal');
+      else if (!G.affixes.includes('noheal')) num(p.x, p.y - 20, '生命已满', 'text');
+      break;
+    }
     case 'chest': import('../ui/levelup.js').then(m => m.openChest()); break;
     case 'fruit': { // hell fruit: strong buff + curse
       const buffs = [
@@ -327,27 +351,42 @@ function collect(k) {
       const c = k.conf;
       if (c) {
         const isSaint = /^s\d$/.test(c.id);
-        if (!META.confessionsFound.includes(c.id)) META.confessionsFound.push(c.id);
+        const isNew = !META.confessionsFound.includes(c.id);
+        if (isNew) META.confessionsFound.push(c.id);
         if (isSaint && !META.saintConfessions.includes(c.id)) META.saintConfessions.push(c.id);
         // 儿童祷文 for mina's unlock — a fixed set of child-voiced confessions
         const CHILD_PRAYERS = ['c03', 'c04', 'c09', 'c13', 'c14', 'c17', 'c52'];
         META.stats.prayers = CHILD_PRAYERS.filter(id => META.confessionsFound.includes(id)).length;
         G.confessionsThisRun.push(c.id);
         saveMeta();
+        const pollen = G.areaId === 'fakeheaven' ? 3 : 1;
         if (isSaint) {
           // a true-ending seal deserves a ritual, not a passing toast
           sfx.bigbell();
           addFlash('#D8C7A4', 0.4);
           import('../ui/screens.js').then(m => m.showSaintConfession(c));
-        } else {
+        } else if (isNew) {
           window.__TOAST && window.__TOAST(c.title, c.text);
+        } else {
+          // already in the codex: a short float, not a 9s full-text card
+          num(p.x, p.y - 20, `告解·已收录 +${pollen}花粉`, 'text');
         }
-        G.runResources.pollen += G.areaId === 'fakeheaven' ? 3 : 1;
+        G.runResources.pollen += pollen;
       }
       sfx.chest();
       break;
     }
     case 'gift': {
+      // after the first staged choice, a player who has never accepted knows the
+      // answer — auto-knock it over instead of interrupting a sixth time
+      if (G.giftSeen && G.giftsTaken === 0) {
+        G.giftsRefused++;
+        G.obedience = Math.max(0, G.obedience - 5);
+        num(p.x, p.y - 20, '「打翻了。」顺从-5', 'text');
+        sfx.select();
+        break;
+      }
+      G.giftSeen = true;
       // refusing temptation is the chapter's theme — make it an explicit choice
       import('../ui/screens.js').then(m => m.showGiftChoice({
         onTake: () => {
@@ -368,7 +407,7 @@ function collect(k) {
     }
     case 'candle': {
       G.candleBuffT = 12;
-      num(p.x, p.y - 20, '烛光引路', 'text');
+      num(p.x, p.y - 20, '烛光引路 · 拾取范围+60%（12秒）', 'text');
       sfx.pickup();
       break;
     }

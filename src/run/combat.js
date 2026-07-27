@@ -27,7 +27,7 @@ export function dealDamage(e, base, opts = {}) {
     crit = opts.forcedCrit || G.rng() < S().crit;
     if (crit) dmg *= S().critDmg;
   }
-  if (e.isBoss) dmg *= S().bossDmg;
+  if (e.isBoss) dmg *= S().bossDmg * (1 + (G.bossSoftDmg || 0));   // 软狂暴增伤 (bosses.js 维护)
   if (opts.isDot) {
     dmg *= S().dotMult;
     if (e.st.rot.t > 0) dmg *= 1.35;      // 腐烂: dots amplified
@@ -183,7 +183,17 @@ export function killEnemy(e, opts = {}) {
     return;
   }
   G.kills++;
-  sfx.kill();
+  // 连诛: 3s rolling kill-streak — tiered fanfare keeps the mowing audible & rewarded
+  G.streak = (G.streak || 0) + 1;
+  G.streakT = 3;
+  const streakTier = G.streak >= 80 ? 3 : G.streak >= 40 ? 2 : G.streak >= 20 ? 1 : 0;
+  sfx.kill(1 + streakTier * 0.18);
+  if (G.streak === 20 || G.streak === 40 || G.streak === 80) {
+    num(p.x, p.y - 34, '连诛×' + G.streak, 'combo');
+    G.runResources.ash += G.streak === 20 ? 10 : G.streak === 40 ? 20 : 40;
+    // ×80: the field itself bows — every gem on the ground rushes in
+    if (G.streak === 80) for (const k of G.pickups) if (k.type === 'gem') { k.pulled = true; k.pt = 0; }
+  }
   burst(e.x, e.y, e.isElite ? 'rgba(212,71,79,0.8)' : 'rgba(216,199,164,0.55)', e.isElite ? 12 : 5, 80, 0.4, e.isElite ? 4 : 3);
   // corpse dissolve animation
   if (G.parts.length < 380) {
@@ -226,8 +236,8 @@ export function killEnemy(e, opts = {}) {
     hitStop(0.12); addShake(3);
     if (p.sinExecute && e.executedBySin) META.stats.eliteExec++;
     if (p.relics.includes('widowring')) healPlayer(p.S.maxHp * 0.2);
-    // elite chest chance
-    if (G.rng() < 0.22 + S().luck * 0.3) G.pickups.push({ type: 'chest', x: e.x, y: e.y, t: 0 });
+    // elite chest chance — the run's FIRST elite always pays out (完整仪式链教学)
+    if (G.eliteKills === 1 || G.rng() < 0.22 + S().luck * 0.3) G.pickups.push({ type: 'chest', x: e.x, y: e.y, t: 0 });
   } else if (e.womb) {
     sfx.eliteKill(); addShake(2);
   }
@@ -236,30 +246,43 @@ export function killEnemy(e, opts = {}) {
   const gain = (e.isElite ? 8 : 2) * S().sinRate;
   if (p.sin.charge < p.sin.need) {
     p.sin.charge = Math.min(p.sin.need, p.sin.charge + gain);
-    if (p.sin.charge >= p.sin.need) sfx.sinReady();
+    if (p.sin.charge >= p.sin.need) {
+      sfx.sinReady();
+      // newcomer's first-ever full charge: point at the button (once, persisted)
+      if (META.runs < 3 && !(META.hints && META.hints.sinReady)) {
+        (META.hints = META.hints || {}).sinReady = 1;
+        saveMeta();
+        G.sinReadyHintT = 4;
+        num(p.x, p.y - 26, '罪技已充能——点按右下大按钮', 'skill');
+      }
+    }
   }
   // run resources trickle (罪印 grants +20% reward per mark)
-  G.runResources.ash += (e.isElite ? 6 : 1) * (G.diff.reward || 1) * (1 + G.sinMarks * 0.2);
+  G.runResources.ash += (e.isElite ? 15 : 2) * (G.diff.reward || 1) * (1 + G.sinMarks * 0.2);
 }
 
 function dropLoot(e) {
   const p = G.player;
-  let v = e.xp || (e.isElite ? 25 : 2 + Math.floor(G.time / 240));
+  let v = e.xp || (e.isElite ? 25 : 2 + Math.floor(G.time / 120));
+  // ranged kills (>300px) pay a little extra — subsidizes slow long-gun builds
+  if (Math.hypot(e.x - p.x, e.y - p.y) > 300) v += 1;
   if (G.affixes.includes('moonless')) v *= 2;
-  // merge gems when too many — into the gem nearest to the dying enemy
+  // merge gems when too many — into the gem nearest to the PLAYER, so value
+  // piles up where the run actually walks instead of in far-off boulders
   if (G.pickups.length > 130) {
     let g = null, gd = Infinity;
     for (let i = G.pickups.length - 1, seen = 0; i >= 0 && seen < 40; i--) {
       const k = G.pickups[i];
       if (k.type !== 'gem') continue;
       seen++;
-      const d2 = (k.x - e.x) ** 2 + (k.y - e.y) ** 2;
+      const d2 = (k.x - p.x) ** 2 + (k.y - p.y) ** 2;
       if (d2 < gd) { gd = d2; g = k; }
     }
     if (g) { g.v += v; g.tier = g.v > 40 ? 3 : g.v > 12 ? 2 : 1; return; }
   }
   G.pickups.push({ type: 'gem', x: e.x + G.rng() * 10 - 5, y: e.y + G.rng() * 10 - 5, v, tier: v > 40 ? 3 : v > 12 ? 2 : 1, t: 0 });
-  if (G.rng() < 0.018) G.pickups.push({ type: 'heart', x: e.x, y: e.y, v: 14, t: 0 });
+  // hearts scale with max hp so late-game hearts stay meaningful
+  if (G.rng() < 0.018) G.pickups.push({ type: 'heart', x: e.x, y: e.y, v: Math.max(14, Math.round(p.S.maxHp * 0.15)), t: 0 });
   if (G.areaId === 'hell' && G.rng() < 0.02) G.pickups.push({ type: 'fruit', x: e.x, y: e.y, t: 0 });
 }
 
@@ -267,40 +290,54 @@ export function spawnPlagueCrow(x, y) {
   G.projs.push({ type: 'crowpet', x, y, t: 0, life: 6, dmg: 10, r: 9, cd: 0 });
 }
 
+// returns the actual amount restored (shield gained when overheal converts to shield)
 export function healPlayer(v, opts = {}) {
   const p = G.player;
   v = v * p.S.healPower;
   if (G.phase === 'tribunal') v *= 0.5;      // 审判中治疗效率减半 (docs §12.5)
-  if (v <= 0) return;
-  // 禁止治疗 affix
-  if (G.affixes.includes('noheal')) { G.tempAtkT = 6; return; }
+  if (v <= 0) return 0;
+  // 禁止治疗 affix — say it out loud instead of silently eating the heal
+  if (G.affixes.includes('noheal')) {
+    G.tempAtkT = 6;
+    if (G.time - (G.lastNohealNumT || 0) > 1.5) {
+      G.lastNohealNumT = G.time;
+      num(p.x, p.y - 20, '禁疗·化为攻击+25%（6秒）', 'warn');
+    }
+    return 0;
+  }
   // 倒悬圣像: heal → double shield
   if (p.relics.includes('healToShield')) opts.toShield = true;
   if (p.relics.includes('invertedicon')) {
+    const bs = p.shield;
     p.shield = Math.min(p.S.maxHp * 0.5, p.shield + v * 2);
-    return;
+    return p.shield - bs;
   }
   // lifesteal cap
   if (opts.lifesteal) {
     G.lsAcc = (G.lsAcc || 0);
     const cap = p.S.maxHp * BAL.caps.lifestealPerSec;
     if (G.lsWindow === undefined) G.lsWindow = 0;
-    if (G.lsAcc >= cap) return;
+    if (G.lsAcc >= cap) return 0;
     v = Math.min(v, cap - G.lsAcc);
     G.lsAcc += v;
   }
   const before = p.hp;
   p.hp = Math.min(p.S.maxHp, p.hp + v);
-  const overflow = v - (p.hp - before);
+  const healed = p.hp - before;
+  const overflow = v - healed;
   // evlann: overheal → blood shield
+  let shieldGain = 0;
   if (overflow > 0 && p.char.id === 'evlann') {
+    const bs = p.shield;
     p.shield = Math.min(p.S.maxHp * 0.3, p.shield + overflow);
+    shieldGain = p.shield - bs;
   }
   // fake heaven: healing raises obedience & heals the heaven
   if (G.areaId === 'fakeheaven') G.obedience += 1.2;
   if (G.areaId === 'trueheaven' && G.boss && !G.boss.dead) {
     G.boss.hp = Math.min(G.boss.maxHp, G.boss.hp + v * 2);
   }
+  return healed + shieldGain;
 }
 
 // touch damage from enemy to player (called by spawner update)

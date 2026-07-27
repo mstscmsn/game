@@ -1,5 +1,5 @@
 // Level-up cards, chests, artifact fusion & forbidden-weapon ceremonies.
-import { G, num } from '../run/state.js';
+import { G, num, burst } from '../run/state.js';
 import { WEAPONS, WEAPON_BY_ID, CATALYSTS, CATALYST_BY_ID, FORBIDDEN, ARTIFACT_BY_ID } from '../data/weapons.js';
 import { RELICS, RELIC_BY_ID } from '../data/relics.js';
 import { BAL } from '../data/balance.js';
@@ -44,13 +44,20 @@ function candidates() {
     for (const def of CATALYSTS) {
       if (p.catalysts.some(c => c.id === def.id)) continue;
       if (p.banished.includes('c:' + def.id)) continue;
-      // weapon slots full → only offer catalysts fusable with owned weapons (docs §6.3)
-      const ownsWeapon = p.weapons.some(w => w.id === def.forW);
-      if (p.weapons.length >= 6 && !ownsWeapon) continue;
-      out.push({ kind: 'catalyst', id: def.id, up: false, w: (ownsWeapon ? 10 * 3.5 : 10) * luck });
+      // slot pressure: weapon slots full, or 4+ catalyst slots used → fusable only (docs §6.3)
+      const wobj = p.weapons.find(w => w.id === def.forW);
+      if ((p.weapons.length >= 6 || p.catalysts.length >= 4) && !wobj) continue;
+      // matched pairs ramp with the paired weapon's level (fusion demand);
+      // mismatches are cheap fillers with no luck scaling
+      out.push({ kind: 'catalyst', id: def.id, up: false, w: wobj ? (35 + (wobj.lv >= 6 ? 45 : wobj.lv * 5)) * luck : (p.weapons.length >= 3 ? 8 : 3) });
     }
   }
-  // generic boosts (always some filler) — with stack count on the card
+  // generic boosts (always some filler) — with stack count on the card;
+  // stats already at their hard cap get depreciated so fewer dead cards show up
+  const capped = {
+    crit: p.S.crit >= BAL.caps.crit, cdr: p.S.cdr >= BAL.caps.cdr,
+    speed: p.S.moveSpeed >= BAL.base.moveSpeed * (1 + BAL.caps.moveBonus),
+  };
   const boosts = [
     ['hp', '肉身还愿', '最大生命+10%'], ['dmg', '磨刃', '全伤害+6%'], ['area', '教区扩张', '范围+5%'],
     ['cdr', '快钟摆', '冷却缩减+4%'], ['speed', '疾行', '移动速度+4%'], ['magnet', '引魂', '拾取范围+15%'],
@@ -58,21 +65,59 @@ function candidates() {
   ];
   for (const [id, nm, ds] of boosts) {
     const st = p.boosts[id] || 0;
-    out.push({ kind: 'boost', id, nm, ds: ds + (st ? `（已持 ${st} 层）` : ''), w: 4 });
+    out.push({ kind: 'boost', id, nm, ds: ds + (st ? `（已持 ${st} 层）` : ''), w: capped[id] ? 0.5 : 4 });
   }
-  // the rare exciting one: +1 projectile (hard-capped at 2 picks)
-  if ((p.boosts.amount || 0) < 2) out.push({ kind: 'boost', id: 'amount', nm: '增殖圣痕', ds: '所有武器投射物数量 +1（稀有）', w: 1.2, rare: true });
+  // endgame: all weapons evolved or maxed → promotion cards keep levels meaningful
+  const endgame = p.weapons.length > 0 && p.weapons.every(w => w.evolved || w.lv >= 8);
+  // the rare exciting one: +1 projectile — weight ramps with level & luck (cap 2, 3 in endgame)
+  if ((p.boosts.amount || 0) < (endgame ? 3 : 2)) out.push({ kind: 'boost', id: 'amount', nm: '增殖圣痕', ds: '所有武器投射物数量 +1（稀有）', w: (1.2 + Math.min(6, p.level * 0.3)) * (1 + p.S.luck * 2), rare: true });
+  if (endgame) {
+    if (p.weapons.some(w => w.evolved)) {
+      const n = p.boosts.artifactDmg || 0;
+      out.push({ kind: 'boost', id: 'artifactDmg', icon: 'dmg', nm: '圣化之刃', ds: '已进化武器伤害 ×1.10（可叠加）' + (n ? `（已持 ${n} 层）` : ''), w: 8, rare: true });
+    }
+    const dn = p.boosts.dr || 0;
+    if (dn < 10) out.push({ kind: 'boost', id: 'dr', icon: 'armor', nm: '铁壁', ds: '受到的伤害 -3%（上限30%）' + (dn ? `（已持 ${dn} 层）` : ''), w: 8, rare: true });
+  }
+  // pool exhausted: only boosts left → overload versions (double stacks) + a heal
+  if (out.length && out.every(c => c.kind === 'boost')) {
+    for (const c of out) {
+      if (!c.rare && !c.n) { c.n = 2; c.nm = '超载·' + c.nm; c.ds = c.ds.replace(/(\d+)/, m => m * 2) + '（双倍）'; }
+    }
+    out.push({ kind: 'heal', id: 'heal', icon: 'hp', nm: '血肉修补', ds: '立即恢复30%生命', w: 6 });
+  }
   return out;
+}
+
+// 距神器一步: lv7+ weapon upgrade with its catalyst in hand, or a new catalyst
+// whose paired weapon is already lv6+ — the last mile to a fusion
+function isSprintCard(c) {
+  const p = G.player;
+  if (c.kind === 'weapon' && c.up) {
+    const w = p.weapons.find(x => x.id === c.id);
+    return !!(w && !w.evolved && w.lv >= 7 && p.catalysts.some(x => x.id === WEAPON_BY_ID[c.id].catalyst));
+  }
+  if (c.kind === 'catalyst' && !c.up) {
+    const w = p.weapons.find(x => x.id === CATALYST_BY_ID[c.id].forW);
+    return !!(w && !w.evolved && w.lv >= 6);
+  }
+  return false;
 }
 
 function rollCards(n) {
   const p = G.player;
   const pool = candidates();
   const picks = [];
-  // protection: first 8 levels at least one existing weapon upgrade (docs §6.3)
-  if (p.level <= 8) {
+  // protection 1: first 8 levels — or 2 dry sets in a row — at least one existing
+  // weapon upgrade (docs §6.3 + pity)
+  if (p.level <= 8 || G.pityWup >= 2) {
     const wUp = pool.filter(c => c.kind === 'weapon' && c.up);
     if (wUp.length) picks.push(wUp[(G.rng() * wUp.length) | 0]);
+  }
+  // protection 2: a fusion-sprint card is guaranteed a slot whenever one exists
+  if (!picks.some(isSprintCard)) {
+    const sp = pool.filter(c => isSprintCard(c) && !picks.some(x => x.kind === c.kind && x.id === c.id));
+    if (sp.length) picks.push(sp[(G.rng() * sp.length) | 0]);
   }
   let guard = 60;
   while (picks.length < n && guard-- > 0) {
@@ -85,7 +130,31 @@ function rollCards(n) {
     if (picks.some(x => x.kind === chosen.kind && x.id === chosen.id)) { chosen.w = 0; continue; }
     picks.push(chosen);
   }
-  // 七罪骰子: 4th option is cursed relic
+  // 增殖圣痕 soft pity: by Lv12 every build has seen the card at least once
+  if (p.level >= 12 && !p.boosts.amount && !G.amountOffered) {
+    const amt = pool.find(c => c.kind === 'boost' && c.id === 'amount');
+    if (amt && !picks.includes(amt)) {
+      G.amountOffered = true;
+      const ri = picks.findIndex(c => c.kind === 'boost' || (c.kind === 'catalyst' && !isSprintCard(c)));
+      if (ri >= 0) picks[ri] = amt; else picks.push(amt);
+    } else if (amt) G.amountOffered = true;
+  }
+  // pity bookkeeping — weapon upgrades
+  if (picks.some(c => c.kind === 'weapon' && c.up)) G.pityWup = 0;
+  else if (p.weapons.some(w => !w.evolved && w.lv < 8)) G.pityWup++;
+  // pity bookkeeping — a lv7+ weapon starving for its catalyst (hard backstop)
+  const starve = p.weapons.find(w => !w.evolved && w.lv >= 7 && !p.catalysts.some(c => c.id === WEAPON_BY_ID[w.id].catalyst));
+  if (starve && p.catalysts.length < 6 && !p.banished.includes('c:' + WEAPON_BY_ID[starve.id].catalyst)) {
+    const cid = WEAPON_BY_ID[starve.id].catalyst;
+    if (picks.some(c => c.kind === 'catalyst' && c.id === cid)) G.pityCat = 0;
+    else if (++G.pityCat >= 3) { picks[Math.min(2, picks.length - 1)] = { kind: 'catalyst', id: cid, up: false, w: 1 }; G.pityCat = 0; }
+  } else G.pityCat = 0;
+  // shuffle so guaranteed cards don't always sit in slot 1
+  for (let i = picks.length - 1; i > 0; i--) {
+    const j = (G.rng() * (i + 1)) | 0;
+    [picks[i], picks[j]] = [picks[j], picks[i]];
+  }
+  // 七罪骰子: 4th option is cursed relic (stays last by design)
   if (p.relics.includes('sindice')) {
     const cursed = RELICS.filter(r => r.cursed && !p.relics.includes(r.id));
     if (cursed.length && p.relics.length < maxRelics(p)) picks.push({ kind: 'relic', id: cursed[(G.rng() * cursed.length) | 0].id, w: 1, cursed: true });
@@ -106,14 +175,30 @@ export function openLevelUp(reopen = false) {
   if (locked && locked.some(c => (c.kind === 'weapon' && c.up && !p.weapons.some(w => w.id === c.id)) || (c.kind === 'catalyst' && c.up && !p.catalysts.some(x => x.id === c.id)))) locked = null;
   const cards = locked || rollCards(3);
   setLocked(null);
-  renderCards('圣痕苏醒 — 抉择', cards, {
+  // onboarding: explain the four fusion terms during the first runs / first sets
+  let hint = null;
+  if (META.runs < 2 || (META.hints.fuseHintN || 0) < 3) {
+    hint = '催化物＝被动加成；武器满级＋对应催化物＝融合为神器';
+    META.hints.fuseHintN = (META.hints.fuseHintN || 0) + 1;
+    saveMeta();
+  }
+  const title = '圣痕苏醒 — 抉择' + (G.levelupQueue > 0 ? `（还有${G.levelupQueue}次）` : '');
+  renderCards(title, cards, {
     showSkip: true, showReroll: p.rerolls > 0, showBanish: p.banishes > 0, showLock: !p.lockUsed,
-    onPick: (c) => { applyCard(c); closeCards(); },
+    hint,
+    onPick: (c) => { applyCard(c); pickFeedback(c); closeCards(); },
     onSkip: () => {
-      // skip → heal 15%, to shield when full (docs §6.3)
+      // skip → heal 15%, to shield when full (docs §6.3) — always with visible feedback
       const v = p.S.maxHp * 0.15;
-      if (p.hp >= p.S.maxHp) p.shield = Math.min(p.S.maxHp * 0.5, p.shield + v);
-      else healPlayer(v);
+      if (p.hp >= p.S.maxHp) {
+        p.shield = Math.min(p.S.maxHp * 0.5, p.shield + v);
+        p.shieldHitT = 0.4;
+        num(p.x, p.y - 24, '护盾 +' + Math.round(v), 'heal');
+      } else {
+        const got = healPlayer(v);
+        num(p.x, p.y - 24, '+' + Math.round(got || v), 'heal');
+      }
+      sfx.pickup();
       closeCards();
     },
     onReroll: () => { p.rerolls--; closeCards(false); openLevelUp(true); },
@@ -122,25 +207,68 @@ export function openLevelUp(reopen = false) {
       p.banished.push((c.kind === 'weapon' ? 'w:' : 'c:') + c.id);
       closeCards(false); openLevelUp(true);
     },
-    onLock: (cs) => { p.lockUsed = true; setLocked(cs); closeCards(); },
+    onLock: (cs) => {
+      p.lockUsed = true; setLocked(cs); closeCards();
+      toastCeremony('锁定', '本组已封存——下次圣痕苏醒原样重现');
+    },
+    // 3+ queued level-ups: fold the backlog into random boost stacks in one tap
+    onClaimAll: G.levelupQueue >= 3 ? () => {
+      const ids = ['hp', 'dmg', 'area', 'cdr', 'speed', 'magnet', 'crit', 'armor'];
+      let left = G.levelupQueue;
+      G.levelupQueue = 0;
+      while (left-- > 0) { const id = ids[(G.rng() * ids.length) | 0]; p.boosts[id] = (p.boosts[id] || 0) + 1; }
+      recomputeStats(p);
+      num(p.x, p.y - 30, '既往圣痕已折算为随机强化', 'skill');
+    } : null,
   });
+}
+
+// picking a card must be felt instantly: gold burst + cumulative float + the
+// upgraded weapon fires the moment combat resumes (cd=0)
+function pickFeedback(c) {
+  const p = G.player;
+  burst(p.x, p.y, 'rgba(181,141,59,0.85)', 12, 130, 0.5, 3);
+  if (c.kind === 'weapon') {
+    const w = p.weapons.find(w => w.id === c.id);
+    if (w) w.cd = 0;
+    num(p.x, p.y - 30, WEAPON_BY_ID[c.id].name + '↑', 'skill');
+  } else if (c.kind === 'boost') {
+    const n = p.boosts[c.id] || 0;
+    const label = c.nm.replace(/^超载·/, '');
+    const MUL = { hp: 1.10, dmg: 1.06, area: 1.05, speed: 1.04, magnet: 1.15 };
+    const ADD = { cdr: 4, crit: 5 };
+    if (MUL[c.id]) num(p.x, p.y - 30, `${label}×${n}：+${Math.round((Math.pow(MUL[c.id], n) - 1) * 100)}%`, 'skill');
+    else if (ADD[c.id]) num(p.x, p.y - 30, `${label}×${n}：+${ADD[c.id] * n}%`, 'skill');
+    else if (c.id === 'armor') num(p.x, p.y - 30, `${label}×${n}：护甲+${3 * n}`, 'skill');
+    else num(p.x, p.y - 30, label + (n > 1 ? `×${n}` : ''), 'skill');
+  } else if (c.kind === 'catalyst') {
+    num(p.x, p.y - 30, CATALYST_BY_ID[c.id].name + '↑', 'skill');
+  } else if (c.kind === 'heal') {
+    num(p.x, p.y - 30, '血肉修补', 'heal');
+  } else if (c.kind === 'relic') {
+    num(p.x, p.y - 30, RELIC_BY_ID[c.id].name, 'skill');
+  }
 }
 
 function applyCard(c) {
   const p = G.player;
+  const old = p.S;
   if (c.kind === 'weapon') {
     const w = p.weapons.find(w => w.id === c.id);
     if (w) w.lv = Math.min(8, w.lv + 1);
     else {
-      p.weapons.push({ id: c.id, lv: 1 + (metaStartLv()), evolved: false, cd: 0, st: {} });
+      p.weapons.push({ id: c.id, lv: weaponEnterLv(), evolved: false, cd: 0, st: {} });
       if (!META.seenWeapons.includes(c.id)) { META.seenWeapons.push(c.id); saveMeta(); }
+      if (p.weapons.length === 6) toastCeremony('武器栏已满', '六具凶器已齐——此后只出现催化物与强化', icon(WEAPON_BY_ID[c.id].icon));
     }
   } else if (c.kind === 'catalyst') {
     const cat = p.catalysts.find(x => x.id === c.id);
     if (cat) cat.lv = Math.min(5, cat.lv + 1);
     else p.catalysts.push({ id: c.id, lv: 1 });
   } else if (c.kind === 'boost') {
-    p.boosts[c.id] = (p.boosts[c.id] || 0) + 1;
+    p.boosts[c.id] = (p.boosts[c.id] || 0) + (c.n || 1);
+  } else if (c.kind === 'heal') {
+    healPlayer(p.S.maxHp * 0.3);
   } else if (c.kind === 'relic') {
     if (!p.relics.includes(c.id)) {
       p.relics.push(c.id);
@@ -150,10 +278,36 @@ function applyCard(c) {
     }
   }
   recomputeStats(p);
+  // milestone / cap callouts for boost picks
+  if (c.kind === 'boost' && old) {
+    const S = p.S;
+    if (old.crit < 0.25 && S.crit >= 0.25) toastCeremony('狠辣已成', '暴击率突破 25%', icon('crit'));
+    else if (old.crit < 0.5 && S.crit >= 0.5) toastCeremony('狠辣已臻化境', '暴击率突破 50%', icon('crit'));
+    if (old.cdr < 0.3 && S.cdr >= 0.3) toastCeremony('钟摆如飞', '冷却缩减突破 30%', icon('cdr'));
+    const capKey = c.id === 'speed' ? 'moveSpeed' : c.id;
+    const atCap = (c.id === 'crit' && S.crit >= BAL.caps.crit) || (c.id === 'cdr' && S.cdr >= BAL.caps.cdr)
+      || (c.id === 'speed' && S.moveSpeed >= BAL.base.moveSpeed * (1 + BAL.caps.moveBonus));
+    if (atCap && old[capKey] === S[capKey]) toastCeremony('已达上限', `${c.nm.replace(/^超载·/, '')} 已触顶——此类卡不再生效`, icon(c.icon || c.id));
+  }
+  // 神器就绪: first weapon this run to hit lv8 with its catalyst in hand → tell
+  // the player the next step is a boss/elite chest
+  if (!G.fusionHintShown) {
+    const rw = p.weapons.find(w => !w.evolved && w.lv >= 8 && p.catalysts.some(x => x.id === WEAPON_BY_ID[w.id].catalyst));
+    if (rw) {
+      G.fusionHintShown = true;
+      const d = WEAPON_BY_ID[rw.id];
+      toastCeremony('神器就绪', `${d.name} 可融合为 ${d.artifact.name}——击败精英夺取宝箱`, iconEvolved(d.icon), 'q-art');
+    }
+  }
 }
 function metaStartLv() {
   const p = G.player;
   return p.relics.includes('firstnail') ? 1 : 0;
+}
+// late-run new weapons enter at higher level so they stay competitive
+function weaponEnterLv() {
+  const p = G.player;
+  return 1 + metaStartLv() + Math.min(2, ((p.level - 1) / 8) | 0);
 }
 
 /* =================== chest opening =================== */
@@ -172,17 +326,57 @@ export function openChest() {
   const eligible = p.weapons.filter(w => !w.evolved && w.lv >= 8 && p.catalysts.some(c => c.id === WEAPON_BY_ID[w.id].catalyst));
   if (eligible.length) { evolveWeapon(eligible[0]); G.chestPity = 0; return; }
   G.chestPity++;
-  // 神器保底 (docs §6.3): 3rd consecutive artifact-less boss chest hands you
-  // the missing catalyst for your most-developed weapon
-  if (G.chestPity >= 3) {
-    G.chestPity = 0;
-    const best = [...p.weapons].filter(w => !w.evolved).sort((a, b) => b.lv - a.lv)[0];
-    if (best && !p.catalysts.some(c => c.id === WEAPON_BY_ID[best.id].catalyst) && p.catalysts.length < 6) {
-      const catDef = CATALYST_BY_ID[WEAPON_BY_ID[best.id].catalyst];
-      p.catalysts.push({ id: catDef.id, lv: 1 });
-      recomputeStats(p);
-      toastCeremony('神器保底', `铁钉神父的馈赠：${catDef.name}（${WEAPON_BY_ID[best.id].name} 的催化物）`, icon(catDef.icon), 'q-rare');
-      return;
+  // 神器保底 (docs §6.3): consecutive artifact-less boss chests always push the
+  // build toward its next fusion (w_fusehint node fires one chest earlier).
+  // The counter only clears when something was actually handed out.
+  if (G.chestPity >= (META.nodes['w_fusehint'] ? 2 : 3)) {
+    // best = unfused weapon, catalyst-holders first, then highest level
+    const best = [...p.weapons].filter(w => !w.evolved).sort((a, b) => {
+      const ac = p.catalysts.some(c => c.id === WEAPON_BY_ID[a.id].catalyst) ? 1 : 0;
+      const bc = p.catalysts.some(c => c.id === WEAPON_BY_ID[b.id].catalyst) ? 1 : 0;
+      return (bc - ac) || (b.lv - a.lv);
+    })[0];
+    if (best) {
+      const catId = WEAPON_BY_ID[best.id].catalyst;
+      if (p.catalysts.some(c => c.id === catId)) {
+        // catalyst already held → the weapon itself leaps +2 toward lv8
+        best.lv = Math.min(8, best.lv + 2);
+        G.chestPity = 0;
+        recomputeStats(p);
+        toastCeremony('神器保底', `铁钉神父的馈赠：${WEAPON_BY_ID[best.id].name} 等级提升`, icon(WEAPON_BY_ID[best.id].icon), 'q-rare');
+        return;
+      }
+      if (p.catalysts.length < 6) {
+        const catDef = CATALYST_BY_ID[catId];
+        p.catalysts.push({ id: catDef.id, lv: 1 });
+        G.chestPity = 0;
+        recomputeStats(p);
+        toastCeremony('神器保底', `铁钉神父的馈赠：${catDef.name}（${WEAPON_BY_ID[best.id].name} 的催化物）`, icon(catDef.icon), 'q-rare');
+        return;
+      }
+      // catalyst slots full → offer to swap out an existing catalyst
+      const catDef = CATALYST_BY_ID[catId];
+      const swaps = [...p.catalysts].sort((a, b) => {
+        const am = p.weapons.some(w => w.id === CATALYST_BY_ID[a.id].forW) ? 1 : 0;
+        const bm = p.weapons.some(w => w.id === CATALYST_BY_ID[b.id].forW) ? 1 : 0;
+        return (am - bm) || (a.lv - b.lv);
+      }).slice(0, 3).map(x => ({ kind: 'swap', outId: x.id, inId: catId }));
+      if (swaps.length) {
+        G.phase = 'levelup';
+        renderCards('神器保底 — 催化物替换', swaps, {
+          showSkip: false,
+          onPick: (sw) => {
+            const i = p.catalysts.findIndex(x => x.id === sw.outId);
+            if (i >= 0) p.catalysts.splice(i, 1);
+            p.catalysts.push({ id: sw.inId, lv: 1 });
+            G.chestPity = 0;
+            recomputeStats(p);
+            toastCeremony('神器保底', `${CATALYST_BY_ID[sw.outId].name} 化为灰烬，${catDef.name} 入手`, icon(catDef.icon), 'q-rare');
+            closeCards();
+          },
+        });
+        return;
+      }
     }
   }
   // priority 3: 地狱免费神器升级 or relic / upgrades
@@ -208,14 +402,30 @@ export function openChest() {
       return;
     }
   }
-  // fallback: two random upgrades + ash
+  // fallback: directed fusion progress + ash that scales with run progress
+  const gain = Math.round(60 * (1 + Math.floor(G.time / 180) * 0.5) * (G.diff.reward || 1));
+  G.runResources.ash += gain;
+  const aim = p.weapons.filter(w => !w.evolved && p.catalysts.some(c => c.id === WEAPON_BY_ID[w.id].catalyst)).sort((a, b) => b.lv - a.lv)[0];
+  if (aim && aim.lv >= 6) {
+    // close enough — the chest completes the fusion on the spot
+    aim.lv = 8;
+    G.chestPity = 0;
+    evolveWeapon(aim);
+    return;
+  }
+  if (aim) {
+    aim.lv = Math.min(8, aim.lv + 2);
+    recomputeStats(p);
+    toastCeremony('宝箱', `${WEAPON_BY_ID[aim.id].name} 向神器迈进，灰烬记忆 +${gain}`, icon(WEAPON_BY_ID[aim.id].icon));
+    return;
+  }
   for (let i = 0; i < 2; i++) {
     const ws = p.weapons.filter(w => w.lv < 8);
     if (ws.length) ws[(G.rng() * ws.length) | 0].lv++;
   }
-  G.runResources.ash += 60;
   recomputeStats(p);
-  toastCeremony('宝箱', '武器强化 ×2，灰烬记忆 +60', icon('key'));
+  const full = p.relics.length >= maxRelics(p) ? `（遗物已满 ${p.relics.length}/${maxRelics(p)}）` : '';
+  toastCeremony('宝箱', `武器强化 ×2，灰烬记忆 +${gain}${full}`, icon('key'));
 }
 
 function evolveWeapon(w) {
@@ -225,7 +435,14 @@ function evolveWeapon(w) {
   sfx.fusion();
   addFlash('#B58D3B', 0.5);
   hitStop(0.2);
-  ceremony('神器融合', def.artifact.name, def.artifact.desc, iconEvolved(def.icon), 1200, 'q-art');
+  // 禁器血脉: whisper the forbidden pairing so build paths aren't blind luck
+  let desc = def.artifact.desc;
+  const fb = FORBIDDEN.find(f => f.needs.includes(def.artifact.id));
+  if (fb) {
+    const other = ARTIFACT_BY_ID[fb.needs.find(a => a !== def.artifact.id)];
+    if (other) desc += `<br><span style="color:#B58D3B">深渊低语：它与『${other.name}』共鸣——两者齐聚且持有世界核心时，${fb.name}将苏醒</span>`;
+  }
+  ceremony('神器融合', def.artifact.name, desc, iconEvolved(def.icon), 1200, 'q-art');
   recomputeStats(G.player);
 }
 
@@ -286,6 +503,12 @@ export function openEternalChoice() {
 }
 
 /* =================== DOM rendering =================== */
+// per-level special effects shown on upgrade cards — threshold levels get gold text
+const LVBONUS_TXT = {
+  amount: '投射物+', radius: '半径+', pierce: '穿透+', reach: '距离+', bounces: '弹射+',
+  orbitR: '轨道+', cloudR: '毒雾+', auraR: '范围+', arc: '扇面+', spread: '散布+',
+  heal: '治疗+', copyMult: '复制倍率+', cooldown: '冷却', speed: '弹速+', range: '射程+',
+};
 function cardHtml(c) {
   const p = G.player;
   let ic, nm, lv = '', ds, fuse = '', q = 'q-common', tag = '';
@@ -294,9 +517,22 @@ function cardHtml(c) {
     const w = p.weapons.find(x => x.id === c.id);
     ic = icon(def.icon);
     nm = def.name; tag = '武器';
-    lv = c.up ? `Lv.${w.lv} → ${w.lv + 1}` : '新武器';
     ds = def.desc;
-    if (c.up && w.lv + 1 === 8) { ds += '（升至最高级）'; q = 'q-rare'; }
+    if (c.up) {
+      lv = `Lv.${w.lv} → ${w.lv + 1}`;
+      // concrete gains: damage multiplier delta + threshold specials in gold
+      ds += `——伤害×${BAL.weaponLvMult[w.lv - 1]}→×${BAL.weaponLvMult[Math.min(7, w.lv)]}`;
+      const bonus = def.lvBonus && def.lvBonus[w.lv + 1];
+      if (bonus) {
+        const parts = Object.entries(bonus).map(([k, v]) => (LVBONUS_TXT[k] || k + '+') + v);
+        ds += ` <span style="color:#B58D3B">${parts.join('、')}</span>`;
+        q = 'q-rare';
+      }
+      if (w.lv + 1 === 8) { ds += '（升至最高级）'; q = 'q-rare'; }
+    } else {
+      const enterLv = weaponEnterLv();
+      lv = enterLv > 1 ? `新武器 Lv.${enterLv}` : '新武器';
+    }
     const cat = CATALYST_BY_ID[def.catalyst];
     const hasCat = p.catalysts.some(x => x.id === def.catalyst);
     const fuseKnown = META.nodes['w_fusehint'] || META.seenArtifacts.includes(def.artifact.id);
@@ -304,7 +540,14 @@ function cardHtml(c) {
     fuse = fuseKnown
       ? `融合：${cat.name} → ${def.artifact.name}` + (ready ? '（临近！）' : '')
       : `融合：${cat.name} → ？？？`;
+    if (hasCat && cat.resTxt) fuse += ' · ' + cat.resTxt;
+    // 禁器血脉: an owned evolved artifact pairs with this weapon's artifact
+    const fb = FORBIDDEN.find(f => f.needs.includes(def.artifact.id)
+      && f.needs.some(aid => aid !== def.artifact.id && p.weapons.some(w2 => w2.evolved && WEAPON_BY_ID[w2.id].artifact.id === aid)));
+    if (fb) fuse += ` <span style="color:#B58D3B">禁器血脉：${fb.name}</span>`;
     if (ready) q = 'q-rare';
+    // 距神器一步: sprint card gets the artifact gold frame
+    if (c.up && isSprintCard(c)) { q = 'q-art'; fuse = '【距神器一步】' + fuse; }
     return { ic, nm, lv, ds, fuse, q, tag, ready };
   }
   if (c.kind === 'catalyst') {
@@ -316,16 +559,31 @@ function cardHtml(c) {
     ds = def.fmt.replace('{v}', def.pv * BAL.catalystLvMult[(cat ? cat.lv : 0)] || def.pv);
     const wdef = WEAPON_BY_ID[def.forW];
     const hasW = p.weapons.some(w => w.id === def.forW);
-    fuse = `可催化：${wdef.name}` + (hasW ? '（已持有）' : '');
+    // 共鸣 mechanics gain is a real pick reason — show it alongside the stat
+    fuse = hasW
+      ? `可催化：${wdef.name}（已持有）` + (def.resTxt ? ' · ' + def.resTxt : '')
+      : `可催化：${wdef.name}（未持有）`;
     if (hasW) q = 'q-rare';
+    if (!c.up && isSprintCard(c)) { q = 'q-art'; fuse = '【距神器一步】' + fuse; }
     return { ic, nm, lv, ds, fuse, q, tag };
+  }
+  if (c.kind === 'swap') {
+    const oDef = CATALYST_BY_ID[c.outId], iDef = CATALYST_BY_ID[c.inId];
+    return {
+      ic: icon(iDef.icon), nm: `${oDef.name} → ${iDef.name}`, lv: '替换',
+      ds: `舍弃 ${oDef.name}，换取 ${iDef.name}（${WEAPON_BY_ID[iDef.forW].name} 的催化物）`,
+      fuse: '', q: 'q-rare', tag: '催化',
+    };
+  }
+  if (c.kind === 'heal') {
+    return { ic: icon(c.icon || 'hp'), nm: c.nm, lv: '', ds: c.ds, fuse: '', q: 'q-common', tag: '恢复' };
   }
   if (c.kind === 'relic') {
     const def = RELIC_BY_ID[c.id];
     return { ic: icon(def.icon), nm: def.name, lv: '遗物', ds: def.desc, fuse: '', q: def.cursed ? 'q-cursed' : 'q-rare', tag: '遗物' };
   }
-  // boost
-  return { ic: icon(c.id), nm: c.nm, lv: '', ds: c.ds, fuse: '', q: 'q-common', tag: '强化' };
+  // boost — rare picks (增殖圣痕/圣化之刃/铁壁) render with the rare frame
+  return { ic: icon(c.icon || c.id), nm: c.nm, lv: c.rare ? '稀有' : '', ds: c.ds, fuse: '', q: c.rare ? 'q-rare' : 'q-common', tag: '强化' };
 }
 
 function renderCards(title, cards, h) {
@@ -336,9 +594,19 @@ function renderCards(title, cards, h) {
   // original close logic runs; the flag blocks double-taps / stray clicks meanwhile.
   // Automated sequential clicks are unaffected — the set is gone by the next poll.
   let acted = false;
+  // 350ms grace period: cards pop mid-combat right next to the dodge/sin buttons,
+  // so in-flight taps must not skip or pick anything (matches the entrance anim)
+  const shownAt = performance.now();
+  const tooSoon = () => performance.now() - shownAt < 350;
   const t = document.createElement('div');
   t.className = 'cards-title'; t.textContent = title;
   wrap.appendChild(t);
+  if (h.hint) {
+    const hd = document.createElement('div');
+    hd.style.cssText = 'font-size:11px;color:#8a7f6f;text-align:center;margin:-2px 0 6px;opacity:0.85;letter-spacing:0.5px;';
+    hd.textContent = h.hint;
+    wrap.appendChild(hd);
+  }
   let cardN = 0;
   for (const c of cards) {
     const d = cardHtml(c);
@@ -350,7 +618,7 @@ function renderCards(title, cards, h) {
     el.innerHTML = `<div class="ic"></div><div class="body"><div class="nm">${d.nm}<span class="lv">${d.lv}</span></div><div class="ds">${d.ds}</div>${d.fuse ? `<div class="fuse ${d.ready ? 'ready' : ''}">${d.fuse}</div>` : ''}</div><div class="tag">${d.tag}</div>`;
     el.querySelector('.ic').appendChild(cloneCanvas(d.ic));
     el.addEventListener('click', () => {
-      if (acted) return;
+      if (acted || tooSoon()) return;
       acted = true;
       el.style.animationDelay = '0s';   // the entrance stagger must not delay the pick flash
       el.classList.add('picked');
@@ -359,11 +627,12 @@ function renderCards(title, cards, h) {
     });
     if (h.showBanish && (c.kind === 'weapon' || c.kind === 'catalyst')) {
       const bx = document.createElement('div');
-      bx.style.cssText = 'position:absolute;bottom:6px;right:8px;font-size:10px;color:#49364F;letter-spacing:1px;padding:4px;';
+      // negative margin widens the hit area without pushing the card layout
+      bx.style.cssText = 'position:absolute;bottom:6px;right:8px;font-size:12px;color:#49364F;letter-spacing:1px;padding:12px 14px;margin:-8px;';
       bx.textContent = '放逐 ✕';
       bx.addEventListener('click', (ev) => {
         ev.stopPropagation();
-        if (acted) return;
+        if (acted || tooSoon()) return;
         acted = true;
         h.onBanish(c);
       });
@@ -376,21 +645,41 @@ function renderCards(title, cards, h) {
   if (h.showReroll) {
     const b = document.createElement('button');
     b.className = 'btn small ghost'; b.textContent = `重掷 (${G.player.rerolls})`;
-    b.addEventListener('click', () => { if (acted) return; acted = true; h.onReroll(); });
+    b.addEventListener('click', () => { if (acted || tooSoon()) return; acted = true; h.onReroll(); });
     row.appendChild(b);
   }
   if (h.showLock) {
     const b = document.createElement('button');
-    b.className = 'btn small ghost'; b.textContent = '锁定本组';
-    b.addEventListener('click', () => { if (acted) return; acted = true; h.onLock(cards); });
+    b.className = 'btn small ghost'; b.textContent = '锁定本组（每局一次）';
+    b.addEventListener('click', () => {
+      if (acted || tooSoon()) return;
+      acted = true;
+      // gold flash on the sealed set so locking has a visible confirmation
+      wrap.querySelectorAll('.upcard').forEach(el2 => { el2.style.borderColor = '#B58D3B'; });
+      sfx.select();
+      setTimeout(() => h.onLock(cards), 300);
+    });
+    row.appendChild(b);
+  }
+  if (h.onClaimAll) {
+    const b = document.createElement('button');
+    b.className = 'btn small ghost'; b.textContent = `一键领取剩余 ×${G.levelupQueue}`;
+    b.addEventListener('click', () => {
+      if (acted || tooSoon()) return;
+      b.remove();
+      t.textContent = '圣痕苏醒 — 抉择';
+      sfx.select();
+      h.onClaimAll();
+    });
     row.appendChild(b);
   }
   wrap.appendChild(row);
   if (h.showSkip) {
     const sk = document.createElement('div');
     sk.className = 'skipbar';
-    sk.textContent = '跳过——以血肉抵偿（恢复15%生命）';
-    sk.addEventListener('click', () => { if (acted) return; acted = true; h.onSkip(); });
+    const full = G.player && G.player.hp >= G.player.S.maxHp;
+    sk.textContent = full ? '跳过——以血肉抵偿（满血：转为15%护盾）' : '跳过——以血肉抵偿（恢复15%生命）';
+    sk.addEventListener('click', () => { if (acted || tooSoon()) return; acted = true; h.onSkip(); });
     wrap.appendChild(sk);
   }
   ui().appendChild(wrap);
@@ -442,6 +731,12 @@ function toastCeremony(kicker, text, iconCanvas, q = 'q-rare') {
   const el = document.createElement('div');
   el.className = 'confession-toast';
   el.innerHTML = `<div class="ct">${kicker}</div><div class="cx">${text}</div>`;
+  // the icon was accepted but never rendered — prepend it at toast size
+  if (iconCanvas) {
+    const c = cloneCanvas(iconCanvas);
+    c.style.cssText = 'width:26px;height:26px;float:left;margin:2px 8px 2px 0;image-rendering:pixelated;';
+    el.prepend(c);
+  }
   ui().appendChild(el);
   setTimeout(() => el.remove(), 2600);
 }

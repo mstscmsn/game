@@ -31,6 +31,9 @@ export function spawnBoss(id) {
     wombs: [],
   };
   G.boss = boss;
+  G.bossSoftDmg = 0;
+  // walk in with a full belly: vacuum every gem on the field before the duel
+  for (const k of G.pickups) if (k.type === 'gem') { k.pulled = true; k.pt = 0.6; }
   sfx.boss();
   hitStop(0.3);
   addShake(6);
@@ -68,7 +71,26 @@ export function updateBoss(dt) {
     b.invulnT = 0.8;
     addShake(6); addFlash('#49364F', 0.3);
     sfx.boss();
-    num(b.x, b.y - b.r - 20, '阶段转换', 'warn');
+    hitStop(0.15);
+    num(b.x, b.y - b.r - 20, '圣徒破相——它在流血！', 'warn');
+    // 阶段击破掉落仪式：环形宝石+红心，把最长的反馈空窗切成节拍
+    for (let i = 0; i < 5; i++) {
+      const a = i / 5 * TAU;
+      G.pickups.push({ type: 'gem', x: b.x + Math.cos(a) * 120, y: b.y + Math.sin(a) * 120, v: 8, tier: 2, t: 0 });
+    }
+    G.pickups.push({ type: 'heart', x: b.x, y: b.y + 60, v: Math.max(14, Math.round(p.S.maxHp * 0.15)), t: 0 });
+  }
+  // 持续出血：开战每 20s 渗出 2 颗宝石，boss 战不再是经验断流段
+  b.bleedN = b.bleedN || 0;
+  if (b.t >= (b.bleedN + 1) * 20) {
+    b.bleedN++;
+    for (let i = 0; i < 2; i++) G.pickups.push({ type: 'gem', x: b.x + G.rng() * 80 - 40, y: b.y + G.rng() * 80 - 40, v: 6, tier: 1, t: 0 });
+  }
+  // 50s 软狂暴：拖长的战斗转化为可感知的对 Boss 增伤 (combat 侧乘 1+G.bossSoftDmg)
+  const soft = Math.min(0.36, Math.max(0, (b.t - 50) * 0.012));
+  if (soft > 0) {
+    if ((G.bossSoftDmg || 0) < 0.18 && soft >= 0.18) num(p.x, p.y - 40, '钟声催命：对Boss伤害提升', 'skill');
+    G.bossSoftDmg = soft;
   }
   b.patT -= dt * b.atkSpeed;
   BOSS_AI[b.id] && BOSS_AI[b.id](b, p, dt);
@@ -292,6 +314,7 @@ function seek(b, p, speed, dt, keep = 0) {
 function killBoss(b) {
   b.dead = true;
   G.boss = null;
+  G.bossSoftDmg = 0;
   G.bossKills++;
   META.bossKills[b.id] = (META.bossKills[b.id] || 0) + 1;
   // ranged kill stat for samuel unlock
@@ -316,7 +339,9 @@ function killBoss(b) {
     else spawnEnemy('chestmimic', b.x + 40, b.y, false);
   }
   G.runResources.nail += 2;
-  G.runResources.ash += 120 * (G.diff.reward || 1) * (1 + G.sinMarks * 0.2);
+  G.runResources.ash += 150 * (G.diff.reward || 1) * (1 + G.sinMarks * 0.2);
+  // whale first kill seeds the fallen-wing tree — bone for players who lose the tribunal
+  if (b.id === 'whale' && META.bossKills.whale === 1) G.runResources.bone += 1;
   // world cores from hell onward (forbidden weapon material)
   if (['margola', 'lambking', 'mother'].includes(b.id) || (G.mode === 'endless')) {
     G.worldCores++;

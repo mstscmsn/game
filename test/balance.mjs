@@ -93,6 +93,7 @@ for (let i = 0; i < 320; i++) {
       weapons: p ? p.weapons.map(w => `${w.id}:${w.lv}${w.evolved ? 'A' : ''}`).join(',') : '',
       cats: p ? p.catalysts.map(c => `${c.id}:${c.lv}`).join(',') : '',
       arts: p ? p.weapons.filter(w => w.evolved).length : 0,
+      ash: G.runResources ? G.runResources.ash : 0,
       phase: G.phase, active: G.active, boss: G.boss ? G.boss.id : null,
     };
   });
@@ -103,6 +104,10 @@ for (let i = 0; i < 320; i++) {
 }
 console.log('LAST:', JSON.stringify(last));
 console.log('ARTIFACT_BEFORE_KNELL:', last.arts > 0 ? 'PASS' : 'FAIL');
+// economy guard: ≥1 node per run for the first 10 runs needs roughly 60 ash/min
+const ashPerMin = last.t > 0 ? last.ash / (last.t / 60) : 0;
+console.log('ASH:', last.ash || 0, 'ASH_PER_MIN:', Math.round(ashPerMin));
+console.log('ASH_RATE_OK:', ashPerMin >= 60 ? 'PASS' : 'FAIL');
 console.log(errors.length ? 'ERRORS:\n' + [...new Set(errors)].slice(0, 10).join('\n') : 'NO PAGE ERRORS');
 await browser.close();
 server.kill();
